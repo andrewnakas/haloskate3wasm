@@ -47,6 +47,10 @@ int skate_world_derive_rails(skate_world *world, const float *vertices, int vert
 	const int *indices, int triangle_count);
 int skate_world_rail_count(const skate_world *world);
 void skate_world_clear_rails(skate_world *world);
+/* Rail polyline access (points are 3 floats each); NULL when out of range. */
+const float *skate_world_rail_points(const skate_world *world, int rail, int *point_count);
+/* Closest rail point within max metres: returns the rail index or -1, fills point and unit tangent. */
+int skate_world_nearest_rail(const skate_world *world, const float position[3], float max, float point[3], float tangent[3]);
 
 /* ---------- input, sampled once per 60 Hz step */
 

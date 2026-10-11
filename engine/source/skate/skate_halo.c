@@ -21,10 +21,15 @@ Controls (keyboard / gamepad):
 */
 
 #include "cseries.h"
+#include "cutscene/cinematics.h"
+#include "game/game.h"
 #include "game/players.h"
 #include "input/input.h"
 #include "objects/objects.h"
+#include "physics/collision_bsp.h"
+#include "physics/collision_bsp_definitions.h"
 #include "physics/collisions.h"
+#include "scenario/scenario.h"
 #include "rasterizer/rasterizer.h"
 #include "units/bipeds.h"
 #include "units/units.h"
@@ -55,6 +60,7 @@ static void skate_halo_board_pose(skate_pose const *pose);
 static void skate_halo_hud_event(skate_event const *event);
 static void skate_halo_hud_status(skate_pose const *pose);
 static void skate_halo_hud_post(char const *json);
+static void skate_halo_derive_rails(void);
 
 /* ---------- globals */
 
@@ -63,6 +69,8 @@ static struct
 	boolean initialized;
 	boolean skating;
 	boolean auto_mount;
+	boolean fast_cinematics; /* tests: HALO_SKATE_FAST=1 runs cutscenes at 8x */
+	boolean rail_test;       /* tests: HALO_SKATE_RAILTEST=1 drops the rider onto the nearest rail */
 	long biped_index;
 	skate_world *world;
 	skate_skater *skater;
@@ -73,6 +81,7 @@ static struct
 	unsigned long long last_banked;
 	float stick_previous[2];
 	real feet_height; /* the biped's origin above its feet, world units */
+	void *rails_bsp;  /* the collision BSP the rails were derived from */
 	skate_pose pose;  /* the latest, for the board's render */
 	boolean have_pose;
 } skate_globals;
@@ -97,7 +106,7 @@ static void skate_to_halo(float const *s, real_point3d *h)
 
 static int skate_halo_raycast(void *user, float const origin[3], float const delta[3], skate_hit *hit)
 {
-	long ignore = (long)(intptr_t)user;
+	long ignore = *(long const *)user;
 	real_point3d point;
 	real_vector3d vector;
 	struct collision_result collision;
@@ -204,6 +213,73 @@ static void skate_halo_read_input(short gamepad_index, skate_input *in)
 	in->right_stick[1] = ry;
 }
 
+/* ---------- grind rails
+
+Halo's levels have no grind splines: skate-game's derivation (skate/src/derive.cpp) finds them in the
+level's collision, once per structure BSP (a level can switch BSPs as you play through it). */
+
+static void skate_halo_derive_rails(void)
+{
+	struct collision_bsp *bsp = global_collision_bsp_get();
+	long surface_index;
+	long point_total = 0;
+	long triangle_total = 0;
+	float *vertices;
+	int *indices;
+	long v = 0;
+	long t = 0;
+	real_point3d points[MAXIMUM_VERTICES_PER_COLLISION_SURFACE];
+	int found;
+
+	if (!bsp || (void *)bsp == skate_globals.rails_bsp || !skate_globals.world)
+		return;
+	skate_globals.rails_bsp = bsp;
+	skate_world_clear_rails(skate_globals.world);
+
+	for (surface_index = 0; surface_index < bsp->surfaces.count; ++surface_index)
+	{
+		short count = collision_surface_polygon(bsp, surface_index, points);
+		if (count >= 3)
+		{
+			point_total += count;
+			triangle_total += count - 2;
+		}
+	}
+	vertices = (float *)malloc(sizeof(float) * 3 * (size_t)point_total);
+	indices = (int *)malloc(sizeof(int) * 3 * (size_t)triangle_total);
+	if (!vertices || !indices)
+	{
+		free(vertices);
+		free(indices);
+		return;
+	}
+	for (surface_index = 0; surface_index < bsp->surfaces.count; ++surface_index)
+	{
+		short count = collision_surface_polygon(bsp, surface_index, points);
+		short i;
+		long first = v;
+		if (count < 3)
+			continue;
+		for (i = 0; i < count; ++i)
+		{
+			halo_to_skate(&points[i], &vertices[v * 3]);
+			++v;
+		}
+		for (i = 1; i + 1 < count; ++i)
+		{
+			indices[t * 3 + 0] = (int)first;
+			indices[t * 3 + 1] = (int)(first + i);
+			indices[t * 3 + 2] = (int)(first + i + 1);
+			++t;
+		}
+	}
+	found = skate_world_derive_rails(skate_globals.world, vertices, (int)v, indices, (int)t);
+	free(vertices);
+	free(indices);
+	platform_log("skate: %d grind rails derived from %ld collision surfaces (%ld triangles)",
+		found, bsp->surfaces.count, t);
+}
+
 /* ---------- mounting */
 
 static void skate_halo_mount(long biped_index)
@@ -218,10 +294,11 @@ static void skate_halo_mount(long biped_index)
 	facing = (float)atan2(forward.j, forward.i);
 	if (!skate_globals.skater)
 		skate_globals.skater = skate_skater_new();
-	/* a world per mount: its raycasts ignore this biped */
-	if (skate_globals.world)
-		skate_world_delete(skate_globals.world);
-	skate_globals.world = skate_world_new(skate_halo_raycast, (void *)(intptr_t)biped_index);
+	/* one world; its raycasts ignore whichever biped rides */
+	if (!skate_globals.world)
+		skate_globals.world = skate_world_new(skate_halo_raycast, &skate_globals.biped_index);
+	skate_globals.biped_index = biped_index;
+	skate_halo_derive_rails();
 
 	/* the biped's origin is at its feet (the pill's bottom) */
 	skate_globals.feet_height = 0.f;
@@ -267,6 +344,10 @@ void skate_halo_initialize(void)
 	memset(&skate_globals, 0, sizeof(skate_globals));
 	skate_globals.biped_index = NONE;
 	skate_globals.auto_mount = automatic && automatic[0] == '1';
+	automatic = getenv("HALO_SKATE_FAST");
+	skate_globals.fast_cinematics = automatic && automatic[0] == '1';
+	automatic = getenv("HALO_SKATE_RAILTEST");
+	skate_globals.rail_test = automatic && automatic[0] == '1';
 	skate_globals.initialized = TRUE;
 	platform_log("skate: ready (HaloSkate3, auto mount %s)", skate_globals.auto_mount ? "on" : "off");
 }
@@ -289,6 +370,8 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 		skate_halo_initialize();
 	if (biped->unit.player_index == NONE)
 		return FALSE;
+	if (skate_globals.fast_cinematics)
+		game_time_set_speed(cinematic_in_progress() ? 8.f : 1.f);
 	{
 		struct player_datum *player = player_get(biped->unit.player_index);
 		gamepad_index = player->local_player_index;
@@ -318,7 +401,7 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 			toggle = TRUE;
 		skate_globals.previous_dpad_down = down;
 	}
-	if (skate_globals.auto_mount && !skate_globals.skating && skate_globals.ticks > 60)
+	if (skate_globals.auto_mount && !skate_globals.skating && skate_globals.ticks > 60 && !cinematic_in_progress())
 	{
 		skate_globals.auto_mount = FALSE;
 		toggle = TRUE;
@@ -334,6 +417,53 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 	}
 	if (!skate_globals.skating)
 		return FALSE;
+	if (skate_globals.rail_test && skate_globals.ticks > 90)
+	{
+		float here[3];
+		float point[3];
+		float tangent[3];
+		int rail;
+		skate_globals.rail_test = FALSE;
+		halo_to_skate(&biped->object.position, here);
+		rail = skate_world_nearest_rail(skate_globals.world, here, 60.f, point, tangent);
+		if (rail >= 0)
+		{
+			/* the middle of the rail's longest segment */
+			int count;
+			int i;
+			float best = 0.f;
+			float const *p = skate_world_rail_points(skate_globals.world, rail, &count);
+			for (i = 0; i + 1 < count; ++i)
+			{
+				float dx = p[i * 3 + 3] - p[i * 3], dy = p[i * 3 + 4] - p[i * 3 + 1], dz = p[i * 3 + 5] - p[i * 3 + 2];
+				float l = sqrtf(dx * dx + dy * dy + dz * dz);
+				if (l > best)
+				{
+					best = l;
+					point[0] = p[i * 3] + 0.5f * dx;
+					point[1] = p[i * 3 + 1] + 0.5f * dy;
+					point[2] = p[i * 3 + 2] + 0.5f * dz;
+					tangent[0] = dx / l;
+					tangent[1] = dy / l;
+					tangent[2] = dz / l;
+				}
+			}
+		}
+		if (rail >= 0)
+		{
+			/* drop onto it from 0.6 m above, rolling along it */
+			float start[3];
+			float velocity[3];
+			start[0] = point[0];
+			start[1] = point[1] + 0.6f;
+			start[2] = point[2];
+			velocity[0] = tangent[0] * 4.f;
+			velocity[1] = 0.f;
+			velocity[2] = tangent[2] * 4.f;
+			skate_skater_enter(skate_globals.skater, start, velocity, (float)atan2(tangent[0], tangent[2]));
+			platform_log("skate: rail test: rail %d at %.1f %.1f %.1f", rail, point[0], point[1], point[2]);
+		}
+	}
 
 	{
 		skate_input in;
@@ -343,6 +473,7 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 		real_vector3d velocity;
 		short step;
 
+		skate_halo_derive_rails();
 		skate_halo_read_input(gamepad_index, &in);
 		/* two 60 Hz steps per Halo tick; the first sees the midpoint of the stick's travel so a
 		quick flick still leaves the recognizer two samples */
@@ -516,6 +647,52 @@ static void board_box(float x0, float y0, float z0, float x1, float y1, float z1
 	board_quad(v[0], v[1], v[3], v[2], &end);
 }
 
+/* the grindable edges near the rider, as faint strips just above them */
+static void skate_halo_render_rails(void)
+{
+	static real_argb_color const glow = {0.45f, 0.35f, 0.85f, 1.f};
+	int rail_count = skate_world_rail_count(skate_globals.world);
+	int rail;
+	float const reach = 14.f;
+	float const *here = skate_globals.pose.position;
+
+	for (rail = 0; rail < rail_count; ++rail)
+	{
+		int count;
+		int i;
+		float const *p = skate_world_rail_points(skate_globals.world, rail, &count);
+		for (i = 0; i + 1 < count; ++i)
+		{
+			float const *a = &p[i * 3];
+			float const *b = &p[(i + 1) * 3];
+			float dx = b[0] - a[0], dz = b[2] - a[2];
+			float length = sqrtf(dx * dx + dz * dz);
+			float sx, sz;
+			float mid[3];
+			float c[4][3];
+			real_point3d h[4];
+			short k;
+			mid[0] = 0.5f * (a[0] + b[0]) - here[0];
+			mid[1] = 0.5f * (a[1] + b[1]) - here[1];
+			mid[2] = 0.5f * (a[2] + b[2]) - here[2];
+			if (mid[0] * mid[0] + mid[1] * mid[1] + mid[2] * mid[2] > (reach + length) * (reach + length) || length < 1e-3f)
+				continue;
+			sx = -dz / length * 0.025f;
+			sz = dx / length * 0.025f;
+			c[0][0] = a[0] - sx; c[0][1] = a[1] + 0.01f; c[0][2] = a[2] - sz;
+			c[1][0] = a[0] + sx; c[1][1] = a[1] + 0.01f; c[1][2] = a[2] + sz;
+			c[2][0] = b[0] + sx; c[2][1] = b[1] + 0.01f; c[2][2] = b[2] + sz;
+			c[3][0] = b[0] - sx; c[3][1] = b[1] + 0.01f; c[3][2] = b[2] - sz;
+			for (k = 0; k < 4; ++k)
+				skate_to_halo(c[k], &h[k]);
+			rasterizer_debug_triangle_shaded(&h[0], &h[1], &h[2], &glow, &glow, &glow);
+			rasterizer_debug_triangle_shaded(&h[0], &h[2], &h[3], &glow, &glow, &glow);
+			rasterizer_debug_triangle_shaded(&h[0], &h[2], &h[1], &glow, &glow, &glow);
+			rasterizer_debug_triangle_shaded(&h[0], &h[3], &h[2], &glow, &glow, &glow);
+		}
+	}
+}
+
 void skate_halo_render(void)
 {
 	static real_argb_color const grip = {1.f, 0.10f, 0.10f, 0.11f};
@@ -531,6 +708,8 @@ void skate_halo_render(void)
 	memcpy(board_frame.q, skate_globals.pose.board_rotation, sizeof(board_frame.q));
 	board_frame.origin = object->object.position;
 	board_frame.origin.z -= DECK_HEIGHT_METRES / METRES_PER_WORLD_UNIT + skate_globals.feet_height;
+
+	skate_halo_render_rails();
 
 	/* deck: flat middle, nose and tail kicked up */
 	board_box(-half_w, deck_y, -flat, half_w, deck_y + deck_t, flat, &ply);

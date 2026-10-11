@@ -77,11 +77,13 @@ std::optional<RailSample> World::nearest_rail(Vec3 p, float max) const
 			float len2 = ab.dot(ab);
 			if (len2 < 1e-8f)
 				continue;
-			float t = clampf((p - a).dot(ab) / len2, 0.0f, 1.0f);
+			float raw = (p - a).dot(ab) / len2;
+			float t = clampf(raw, 0.0f, 1.0f);
 			Vec3 q = a + ab * t;
 			float d = q.distance(p);
+			bool end = (i == 0 && raw <= 0.0f) || (i + 2 == pts.size() && raw >= 1.0f);
 			if (d <= max && (!best || d < best->distance))
-				best = RailSample{q, ab.normalize_or_zero(), d, (unsigned)r, i};
+				best = RailSample{q, ab.normalize_or_zero(), d, (unsigned)r, i, end};
 		}
 	}
 	return best;

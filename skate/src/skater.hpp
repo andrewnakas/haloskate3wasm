@@ -117,6 +117,7 @@ private:
 	float grind_sign_ = 1;
 	std::string grind_name_;
 	float grind_time_ = 0;
+	float grind_cooldown_ = 0; // no re-latch right after leaving a rail
 	float bail_timer_ = 0;
 	float air_time_ = 0;
 	int manual_dir_ = 0;

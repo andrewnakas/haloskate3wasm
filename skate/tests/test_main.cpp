@@ -4,6 +4,7 @@
 #include "../src/gesture.hpp"
 #include "../src/skater.hpp"
 #include "../src/tricks.hpp"
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -285,6 +286,10 @@ static void test_grind()
 	r.step({}, 60);
 	CHECK(r.has(SKATE_EVENT_GRIND, "50-50"));
 	CHECK(r.pose().state == SKATE_STATE_GRIND || r.has(SKATE_EVENT_TRICK, "50-50"));
+	// rides off the far end instead of sticking to it
+	r.step({}, 600);
+	CHECK(r.pose().state != SKATE_STATE_GRIND);
+	CHECK(r.pose().position[2] > 29.0f || r.pose().state == SKATE_STATE_ROLLING);
 }
 
 static void test_manual()
@@ -301,8 +306,128 @@ static void test_manual()
 	CHECK(r.pose().state == SKATE_STATE_ROLLING);
 }
 
+
+// ---------- grind_world/derive.rs tests, ported
+using Tri = std::array<std::array<float, 3>, 3>;
+static void quad(std::vector<Tri> &out, std::array<std::array<float, 3>, 4> q)
+{
+	out.push_back({q[0], q[1], q[2]});
+	out.push_back({q[0], q[2], q[3]});
+}
+static void floor_(std::vector<Tri> &out, float half)
+{
+	quad(out, {{{-half, 0, -half}, {-half, 0, half}, {half, 0, half}, {half, 0, -half}}});
+}
+// Closed box, faces wound outward.
+static void solid(std::vector<Tri> &out, std::array<float, 3> mn, std::array<float, 3> mx)
+{
+	float x0 = mn[0], y0 = mn[1], z0 = mn[2], x1 = mx[0], y1 = mx[1], z1 = mx[2];
+	quad(out, {{{x0, y1, z0}, {x0, y1, z1}, {x1, y1, z1}, {x1, y1, z0}}});
+	quad(out, {{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}});
+	quad(out, {{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}});
+	quad(out, {{{x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}, {x1, y0, z1}}});
+	quad(out, {{{x0, y0, z0}, {x0, y1, z0}, {x1, y1, z0}, {x1, y0, z0}}});
+	quad(out, {{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}});
+}
+static float span(const std::vector<Vec3> &line)
+{
+	float s = 0;
+	for (size_t i = 0; i + 1 < line.size(); ++i)
+		s += line[i].distance(line[i + 1]);
+	return s;
+}
+
+static void test_derive()
+{
+	{
+		// flat_ground_and_gentle_banks_have_no_edges
+		std::vector<Tri> t;
+		floor_(t, 10);
+		quad(t, {{{0, 0, -2}, {0, 0, 2}, {1.732f, 1, 2}, {1.732f, 1, -2}}});
+		quad(t, {{{1.732f, 1, -2}, {1.732f, 1, 2}, {5, 1, 2}, {5, 1, -2}}});
+		auto found = derive_rail_lines(t);
+		CHECK(!found.empty());
+		bool ok = true;
+		for (auto &l : found)
+			for (auto &p : l)
+				ok = ok && (p.x > 4.99f || std::fabs(p.z) > 1.99f);
+		CHECK(ok);
+	}
+	{
+		// ledge_box_gives_its_four_top_edges
+		std::vector<Tri> t;
+		floor_(t, 10);
+		solid(t, {-2, 0, -0.5f}, {2, 0.5f, 0.5f});
+		auto found = derive_rail_lines(t);
+		CHECK(found.size() == 4);
+		bool ok = true;
+		int four = 0, one = 0;
+		for (auto &l : found)
+		{
+			ok = ok && l.size() == 2;
+			for (auto &p : l)
+				ok = ok && p.y == 0.5f;
+			four += std::fabs(span(l) - 4) < 1e-4f;
+			one += std::fabs(span(l) - 1) < 1e-4f;
+		}
+		CHECK(ok && four == 2 && one == 2);
+		// winding_does_not_matter
+		for (auto &tri : t)
+			std::swap(tri[1], tri[2]);
+		CHECK(derive_rail_lines(t).size() == 4);
+	}
+	{
+		// stair_noses_are_not_rails_but_the_drop_behind_is
+		std::vector<Tri> t;
+		floor_(t, 10);
+		for (int step = 0; step < 3; ++step)
+		{
+			float s = (float)step;
+			solid(t, {-1, 0, s * 0.3f}, {1, 0.15f * (s + 1), s * 0.3f + 0.3f});
+		}
+		auto found = derive_rail_lines(t);
+		CHECK(found.size() == 1);
+		bool ok = !found.empty();
+		for (auto &l : found)
+			for (auto &p : l)
+				ok = ok && std::fabs(p.y - 0.45f) < 1e-5f && std::fabs(p.z - 0.9f) < 1e-5f;
+		CHECK(ok);
+	}
+	{
+		// thin_bar_becomes_one_centred_rail
+		std::vector<Tri> t;
+		floor_(t, 10);
+		solid(t, {-2, 0.35f, -0.05f}, {2, 0.45f, 0.05f});
+		auto found = derive_rail_lines(t);
+		CHECK(found.size() == 1);
+		bool ok = found.size() == 1 && std::fabs(span(found[0]) - 4) < 1e-4f;
+		for (auto &l : found)
+			for (auto &p : l)
+				ok = ok && std::fabs(p.z) < 1e-5f && std::fabs(p.y - 0.45f) < 1e-5f;
+		CHECK(ok);
+	}
+	{
+		// wide_bar_keeps_both_edges (no own rails here)
+		std::vector<Tri> t;
+		floor_(t, 10);
+		solid(t, {-2, 0.35f, -0.15f}, {2, 0.45f, 0.15f});
+		auto found = derive_rail_lines(t);
+		int long_ = 0;
+		bool ok = true;
+		for (auto &l : found)
+			if (span(l) > 3.9f)
+			{
+				++long_;
+				for (auto &p : l)
+					ok = ok && std::fabs(std::fabs(p.z) - 0.15f) < 1e-5f;
+			}
+		CHECK(long_ == 2 && ok);
+	}
+}
+
 int main()
 {
+	test_derive();
 	test_gesture_vectors();
 	test_mapping();
 	test_lands_and_pushes();

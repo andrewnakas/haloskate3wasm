@@ -399,11 +399,12 @@ void Skater::step_air(World &w, const skate_input &in, float steer)
 	float r = t.radius;
 	Vec3 center = pos + UP * r + vel * DT;
 
-	// Rails: latch when coming down onto one.
-	if (vel.y < 0.5f)
+	// Rails: latch when coming down onto one (not onto its very tip, not right after leaving one).
+	grind_cooldown_ = std::fmax(grind_cooldown_ - DT, 0.0f);
+	if (vel.y < 0.5f && grind_cooldown_ <= 0)
 	{
 		auto rail = w.nearest_rail(center - UP * r, t.grind_snap);
-		if (rail && center.y - r >= rail->point.y - 0.15f)
+		if (rail && !rail->at_end && center.y - r >= rail->point.y - 0.15f)
 		{
 			enter_grind(*rail);
 			return;
@@ -554,7 +555,19 @@ void Skater::step_grind(World &w, const skate_input &in, float steer)
 	float speed = std::fmax(vel.length() - t.grind_friction * DT, 0.8f);
 	Vec3 next = pos + vel * DT;
 	auto r = w.nearest_rail(next, 0.6f);
-	if (r && r->rail == grind_rail_ && r->point.distance(next) < 0.3f)
+	// Off the end of the rail, or too slow to keep sliding (grind/advance.rs: slow exit after 60 updates).
+	bool off_end = r && r->rail == grind_rail_ && r->at_end;
+	bool stalled = grind_time_ > 1.0f && speed < 0.9f;
+	if (stalled)
+	{
+		grind_cooldown_ = 0.5f;
+		state = State::Rolling;
+		ground_normal = UP;
+		vel = vel * 0.5f;
+		events.push_back({SKATE_EVENT_LANDED, "", 0, 1});
+		return;
+	}
+	if (r && r->rail == grind_rail_ && !off_end && r->point.distance(next) < 0.3f)
 	{
 		// Downhill rails speed you up.
 		Vec3 tangent = r->tangent * grind_sign_;
@@ -565,6 +578,7 @@ void Skater::step_grind(World &w, const skate_input &in, float steer)
 	else
 	{
 		// Ran off the end.
+		grind_cooldown_ = 0.3f;
 		state = State::Air;
 		air_time_ = 0;
 		air_tricks_.clear();
@@ -582,6 +596,7 @@ void Skater::step_grind(World &w, const skate_input &in, float steer)
 	if (!pending_flip_.empty())
 	{
 		ground_normal = UP;
+		grind_cooldown_ = 0.3f;
 		pop(t.pop_min, pending_flip_.c_str());
 	}
 	(void)in;

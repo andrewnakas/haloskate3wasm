@@ -39,6 +39,33 @@ int skate_world_derive_rails(skate_world *w, const float *vertices, int vertex_c
 int skate_world_rail_count(const skate_world *w) { return (int)w->world.rail_count(); }
 void skate_world_clear_rails(skate_world *w) { w->world.clear_rails(); }
 
+const float *skate_world_rail_points(const skate_world *w, int rail, int *count)
+{
+	const std::vector<Vec3> *r = rail >= 0 ? w->world.rail((size_t)rail) : nullptr;
+	if (!r)
+	{
+		*count = 0;
+		return nullptr;
+	}
+	*count = (int)r->size();
+	static_assert(sizeof(Vec3) == sizeof(float) * 3, "Vec3 is three packed floats");
+	return &(*r)[0].x;
+}
+
+int skate_world_nearest_rail(const skate_world *w, const float p[3], float max, float point[3], float tangent[3])
+{
+	auto r = w->world.nearest_rail({p[0], p[1], p[2]}, max);
+	if (!r)
+		return -1;
+	point[0] = r->point.x;
+	point[1] = r->point.y;
+	point[2] = r->point.z;
+	tangent[0] = r->tangent.x;
+	tangent[1] = r->tangent.y;
+	tangent[2] = r->tangent.z;
+	return (int)r->rail;
+}
+
 skate_skater *skate_skater_new(void) { return new skate_skater{}; }
 void skate_skater_delete(skate_skater *s) { delete s; }
 
