@@ -1,0 +1,28 @@
+name: smoke
+# After Pages deploys, load the live site in headless Chromium and ride a board in Blood Gulch.
+on:
+  workflow_run:
+    workflows: [Pages]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  browser:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm i --no-save playwright@1 && npx playwright install --with-deps chromium
+      - name: Ride in Blood Gulch
+        env:
+          URL: https://andrewnakas.github.io/haloskate3wasm/?auto=1&quick=host&map=bloodgulch&room=0&env=HALO_SKATE_AUTO=1
+        run: node .github/smoke/smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke
+          path: smoke.png

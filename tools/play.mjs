@@ -18,12 +18,18 @@ const wait = Number(arg('wait', keys ? secs - 30 : secs));
 const after = arg('after', ''); // wait for a log line containing this before counting --wait
 let afterSeen = 0;
 
-const browser = await chromium.launch({
+// A persistent profile keeps the maps in the page's storage between runs (a fresh context has a
+// small quota and must re-copy 160 MB levels every time). --fresh uses a throwaway context.
+const profile = arg('profile', path.join(process.env.HOME, 'Documents', 'haloskate-ref', 'chrome-profile'));
+const options = {
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   headless: true,
   args: ['--enable-gpu', '--use-angle=metal', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'],
-});
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  viewport: { width: 1280, height: 720 },
+};
+const fresh = process.argv.includes('--fresh');
+const browser = fresh ? await chromium.launch(options) : await chromium.launchPersistentContext(profile, options);
+const page = fresh ? await browser.newPage({ viewport: options.viewport }) : (browser.pages()[0] || await browser.newPage());
 const t0 = Date.now();
 const stamp = () => ((Date.now() - t0) / 1000).toFixed(1).padStart(6);
 page.on('console', m => { const t = m.text(); if (!grep || t.includes(grep)) console.log(stamp(), m.type(), t.slice(0, 400)); });

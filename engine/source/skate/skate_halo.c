@@ -356,11 +356,21 @@ void skate_halo_initialize(void)
 	platform_log("skate: ready (HaloSkate3, auto mount %s)", skate_globals.auto_mount ? "on" : "off");
 }
 
+/* cutscenes and scripted moments own the player: the board waits for them */
+static boolean skate_halo_paused(long unit_index)
+{
+	if (cinematic_in_progress() || !player_input_enabled())
+		return TRUE;
+	if (unit_index != NONE && TEST_FLAG(unit_get(unit_index)->unit.flags, _unit_suspended_bit))
+		return TRUE;
+	return FALSE;
+}
+
 boolean skate_halo_unit_is_skating(long unit_index)
 {
 	if (!skate_globals.skating || unit_index == NONE || unit_index != skate_globals.biped_index)
 		return FALSE;
-	if (object_get(unit_index)->object.parent_object_index != NONE)
+	if (object_get(unit_index)->object.parent_object_index != NONE || skate_halo_paused(unit_index))
 	{
 		/* in a vehicle (or carried): the board waits */
 		skate_globals.reenter = TRUE;
@@ -414,7 +424,7 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 			toggle = TRUE;
 		skate_globals.previous_dpad_down = down;
 	}
-	if (skate_globals.auto_mount && !skate_globals.skating && skate_globals.ticks > 60 && !cinematic_in_progress())
+	if (skate_globals.auto_mount && !skate_globals.skating && skate_globals.ticks > 60 && !skate_halo_paused(biped_index))
 	{
 		skate_globals.auto_mount = FALSE;
 		toggle = TRUE;
@@ -430,6 +440,14 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 	}
 	if (!skate_globals.skating)
 		return FALSE;
+	if (skate_halo_paused(biped_index))
+	{
+		/* Halo moves the body; ride on from wherever it ends up */
+		skate_globals.reenter = TRUE;
+		skate_platform_skating = FALSE;
+		skate_globals.have_pose = FALSE;
+		return FALSE;
+	}
 	if (skate_globals.rail_test && skate_globals.ticks > 90)
 	{
 		float here[3];
