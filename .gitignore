@@ -1,0 +1,6 @@
+engine/build/
+build/
+*.o
+.DS_Store
+node_modules/
+skate/build/

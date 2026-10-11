@@ -1,0 +1,8 @@
+{
+ "comment": "The clean-room web build (configure.py --web-clean): CC0 fonts only. Kenney Fonts (kenney.nl, CC0 1.0, Kenney-CC0.txt), kenney_kenney-fonts.zip sha256 4e69a86eef3cd47e9d8207413868cd08bcddeb2dae4047dbd10362e2a7a16bac.",
+ "fonts": [
+  {"tag": "ui\\large_ui", "file": "Kenney-Future.ttf"},
+  {"tag": "ui\\interstate", "file": "Kenney-Future.ttf"},
+  {"tag": "ui\\small_ui", "file": "Kenney-Future-Narrow.ttf"}
+ ]
+}
