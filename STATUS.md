@@ -31,10 +31,21 @@ its VLT tuning numbers are not in the repo or on this machine. So the C++ librar
   HaloSkate 3 with a controls card. Service-worker cache prefix renamed (`haloskate3-`) so it never touches
   halo-cleanroom's caches on the same origin. Default public room disabled (single player).
 
+- **M4 done.** Grind rails derived from each level's collision BSP at mount / BSP switch (C++ port of
+  `grind_world/derive.rs`, its 7 Rust tests ported): Blood Gulch 296 rails, a10 1078, a30 1518. Rails near you glow
+  faintly. Verified in game with `HALO_SKATE_RAILTEST=1`: 50-50 grind, ride off the end, bank.
+- **M5 (in progress).** Campaign verified on a30 (docs/shots/m5-a30-campaign.png): board on as soon as you have
+  control, 9 m/s pushes, kickflip, downhill rolling. Board pauses during cutscenes / scripted control / vehicles and
+  resumes where Chief ends up. Gamepad right stick flicks (Halo's look is centred while skating). README, CLEANROOM,
+  ASSETS, live smoke workflow (`.github/workflows/smoke.yml`).
+
 ## Testing tips (for the loop)
 - Fast route to gameplay: `?auto=1&quick=host&map=bloodgulch&room=0&env=HALO_SKATE_AUTO=1`, then press Enter twice
   (lobby -> start). Campaign: `?auto=1&map=a10&level=a10&room=0&env=HALO_SKATE_AUTO=1,HALO_SKATE_FAST=1` (the a10 intro
   is unskippable; control comes back after ~2 min).
+- `tools/play.mjs` uses a persistent Chrome profile (~/Documents/haloskate-ref/chrome-profile): fresh contexts have a
+  small storage quota and sometimes stalled copying a 160 MB level.
+- a10's opening (cryo, look calibration) can't be played headless: test campaign on a30.
 - Don't send keys while a map is loading (page input during the a10 load stalled it once): use `--after "skate: ready"`.
 
 ## Next
