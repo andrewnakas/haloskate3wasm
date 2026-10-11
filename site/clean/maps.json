@@ -1,0 +1,205 @@
+{
+ "version": "0.4",
+ "files": [
+  {
+   "name": "ui.map",
+   "size": 9080832,
+   "sha256": "c00197bc2b0a9101148e690988b39a75d96d739618ffb8d31ae0c836a67af18f",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "beavercreek.map",
+   "size": 20975616,
+   "sha256": "279a15e5c0dd103ee79bfc1050e386d2bb878c8663bb0b281ef2d90c9cb3b555",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "bloodgulch.map",
+   "size": 21348352,
+   "sha256": "97934fa2198fa16b184f6183eb664520a0005bcccf31387d614fef2acaedc697",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "boardingaction.map",
+   "size": 21274624,
+   "sha256": "decc3df74df70257dc35ff4fb8b3587006850a37a5e8d0a278368dc51f90b1e3",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "carousel.map",
+   "size": 19660800,
+   "sha256": "f8478237c384efbf4b3da12dde97c09dcf26a2452ff45abacd61d6393862ea43",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "chillout.map",
+   "size": 19308544,
+   "sha256": "c638c0051a7c523460a4da177aa6101c8a9588102eec38c74a42019b5cede6e6",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "damnation.map",
+   "size": 22175744,
+   "sha256": "48bdbf71417feff0ab8c8c3465abbc54eb48bdb74fc831a4ce36fb9fa50db927",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "hangemhigh.map",
+   "size": 20135936,
+   "sha256": "886a44cdbb18c0e50b46acd93b02a9a7895a059707e6454d6bb355e1850dc871",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "longest.map",
+   "size": 19664896,
+   "sha256": "18e9d9fb76ff61a7218024b9a82a2799717917bbcc1af3f5fc4425fdb0e3e3ce",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "prisoner.map",
+   "size": 20500480,
+   "sha256": "c6912649af012c14242218804bfb551ea665215171ed523a993e0d3812a92363",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "putput.map",
+   "size": 18964480,
+   "sha256": "77a1345e3e19b0f495b346999bd7ac79f94d4e3f7f530af8097341435ad5b488",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "ratrace.map",
+   "size": 22364160,
+   "sha256": "0d8fc94f2dcabd4727e5be70adaec1dbc5e486faa2535bf91d7905cc532ea00d",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "sidewinder.map",
+   "size": 22872064,
+   "sha256": "a2d31de129e9bc3646389449fa5727831f9ef4317ef24338d1fe8f3ca5be8676",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "wizard.map",
+   "size": 19001344,
+   "sha256": "018df9c63fb626cbc2091e6d187fb59c9b43333e4a67743b133527fca6bf2b79",
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "a10.map",
+   "size": 159391744,
+   "sha256": "92250dd1d35a24073dd0aa0b690272e008ec8b004353b1dd0249b2b66935baee",
+   "parts": 4,
+   "part_sha256": [
+    "bd1fa4225dd0daf6fb21b43e018be8057d3bb583186e3d51ecb65eabaaafe55d",
+    "66bfd5cdba6bdf859f812288415c2ace2a1c55f6de8764b2a8fafd3ad42a1003",
+    "12c26c1ff9e061846e3e498358f251dee6ccebdfcab4efea834add0e02e6a006",
+    "fa5bde53f656316e68d79b7cd260b0fafcaefab413cd7063d7056efeb0fe61ca"
+   ],
+   "base": "/halo-cleanroom/clean/"
+  },
+  {
+   "name": "a30.map",
+   "size": 134443008,
+   "sha256": "d35c547143a272dbac7b1a6bc90a22fd81af1c4da5da19cd43623ffca581e2db",
+   "parts": 3,
+   "part_sha256": [
+    "390d6907a77393c4b456f0c4ac4a2b5c8206f601e44ce62ee7c432d2d60e33c4",
+    "d1422dcbd2cccd5c1f67f4baab34d94b801718aa7cfa7b0e4b87fb973fcf4847",
+    "a2d18f7685b4835c3affecf1b8b9a7f5f0631c2bbf9657ae77928d870ccb1275"
+   ],
+   "base": "/halo-cleanroom-maps1/clean/"
+  },
+  {
+   "name": "a50.map",
+   "size": 150773760,
+   "sha256": "3d01d402928a7a227ff632844e6f1308020bd98f32790a3d5e9255e06bfec8e0",
+   "parts": 3,
+   "part_sha256": [
+    "5ee93390cbde427a6f58d9153d57038c2f59bba4ebfa77b0bf8f43fa7c4d2074",
+    "731185bdd1500e67824fbb74cd6d2992e5b2353bda06603ccc2a5a81199e8877",
+    "79df5c649b8d0b9555f4c95d52bfc1496435786e221faacab5889d0f906bfa21"
+   ],
+   "base": "/halo-cleanroom-maps1/clean/"
+  },
+  {
+   "name": "b30.map",
+   "size": 138706944,
+   "sha256": "0584932d361a9ed96b5a591f541c5c6f7ebbcd157cc8aa8eb539c509c5c42138",
+   "parts": 3,
+   "part_sha256": [
+    "539e2987e058362bdbd59be20419592b4b666f172f0f2cf798a50a6c8c0421cc",
+    "821a6804e7f8161ddc35fb0d8c755fc3d0802496d3d0a562915460ac29613c6e",
+    "8bea09324d4411d1e0f621b5e4b2288abe8dbe21da3f6020e396df6cadd4e25f"
+   ],
+   "base": "/halo-cleanroom-maps1/clean/"
+  },
+  {
+   "name": "b40.map",
+   "size": 161804288,
+   "sha256": "0a758125f6e2f53e1ea1c891d210cc4da9a05c6cd91d29fdd75309fce4aad16f",
+   "parts": 4,
+   "part_sha256": [
+    "ba53c848d035cf2dce583d2eba2b3fb3fa18a2bfdae5c2177794110f38adb9cd",
+    "2c57a074bc136e18d52316f1d023b82520be528b014295271bef57e45edf239e",
+    "04573bdf8568798b8ce6d113b91880c2dab247fada828fc8a961ec9b2f3eac6a",
+    "f4ca2cbd92f21f6c4118aac8e14c4da5b3b798307270780d301b1b1b40c622aa"
+   ],
+   "base": "/halo-cleanroom-maps1/clean/"
+  },
+  {
+   "name": "c10.map",
+   "size": 146776064,
+   "sha256": "6d5100740ea970bee65cfadc1254b9bef9fa689a5e80a71195cbf5ccdf907f26",
+   "parts": 3,
+   "part_sha256": [
+    "f706f65eca44463d43ed9d920a17cff6dfb8ada0b07d35fa8f1bfced1b38e0cc",
+    "55b719262c2535bf1dd1304229e64f0a5f6d7ac3c2cbb64f8268b52927ef7115",
+    "19f2f063f394a5792976e9b87dbc3a5f6203a771681c9b88d9dffc4277d93140"
+   ],
+   "base": "/halo-cleanroom-maps2/clean/"
+  },
+  {
+   "name": "c20.map",
+   "size": 67039232,
+   "sha256": "e9bdfef7251f314c3fc876038569d2342db74e81a2ebbabe86013314b5558fc4",
+   "base": "/halo-cleanroom-maps2/clean/"
+  },
+  {
+   "name": "c40.map",
+   "size": 134336512,
+   "sha256": "b7cbda083e0c891866543e8023c1e20c8ecd553795d563914430949fc92c8c7c",
+   "parts": 3,
+   "part_sha256": [
+    "bbedefc850af946ff295e2e0eb5a64821548fb7e19e0c40b39dc6239e325c799",
+    "874c56374ebbd74727038d1b251daa44f4274b6accf3cf74400b234a1ef777bf",
+    "4340ec3c96d6a776e38b7e109c9329dfa601af00956d44f7ed64d3ffdddd28bd"
+   ],
+   "base": "/halo-cleanroom-maps2/clean/"
+  },
+  {
+   "name": "d20.map",
+   "size": 103776256,
+   "sha256": "72f410b6afa17436fb6ad1a01ca66889d0b0f66298ef96de565b3e21f7fd5bcd",
+   "parts": 3,
+   "part_sha256": [
+    "a0066cef16e872f5c054c4bf783457041d3606a4748f5d01da9d22239eb1ce85",
+    "6045c85ab546e3c228f071d094b74c9528585ccba7282836093fc961f47d0b0f",
+    "26600e3ea8081708ff41fdcfaa95d49bb8e019e6e71cd0277421f317e7721210"
+   ],
+   "base": "/halo-cleanroom-maps2/clean/"
+  },
+  {
+   "name": "d40.map",
+   "size": 139608064,
+   "sha256": "de4328fafe8bc8295ac35278fe58077739177c0efe0726020c27012e1459e83d",
+   "parts": 3,
+   "part_sha256": [
+    "9c1251986e1379f6b1a36b047e3e90026a273c3b183e44ee1c31bd4bbd875aba",
+    "dbc43daf10b42e108944a993e610672287844c5e52821affd2369b90fc11e19d",
+    "e7822cf2a22c9bb849c4ee0ea04404e42b7fba8eda0afe406bd763f4c03a01c7"
+   ],
+   "base": "/halo-cleanroom-maps2/clean/"
+  }
+ ]
+}
