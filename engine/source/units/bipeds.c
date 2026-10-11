@@ -261,6 +261,7 @@ symbols in this file:
 #include "units/biped_limp_noodle.h"
 #include "units/biped_definitions.h"
 #include "units/bipeds.h"
+#include "skate/skate_halo.h"
 #include "units/vehicle_definitions.h"
 #include "units/vehicles.h"
 #include "physics/breakable_surfaces.h"
@@ -4254,34 +4255,38 @@ boolean biped_update(
 			biped->unit.control_flags,
 			_unit_control_crouch_modifier_bit);
 
-		biped_verify_object_vectors(biped_index, "pre-turning");
-		if (!TEST_FLAG(biped->object.damage_flags, _object_dead_bit))
+		/* HaloSkate3: on the board, the skateboard moves the biped (source/skate) */
+		if (!skate_halo_update_biped(biped_index, &animation))
 		{
-			biped_update_turning(biped_index, &animation);
-			biped_verify_object_vectors(biped_index, "post-turning");
-		}
+			biped_verify_object_vectors(biped_index, "pre-turning");
+			if (!TEST_FLAG(biped->object.damage_flags, _object_dead_bit))
+			{
+				biped_update_turning(biped_index, &animation);
+				biped_verify_object_vectors(biped_index, "post-turning");
+			}
 
-		biped_update_moving(biped_index, &animation);
-		biped_verify_object_vectors(biped_index, "post-moving");
+			biped_update_moving(biped_index, &animation);
+			biped_verify_object_vectors(biped_index, "post-moving");
 
-		if (TEST_FLAG(biped->object.damage_flags, _object_dead_bit))
-		{
-			biped_update_dead(biped_index, &animation);
-		}
-		else if (TEST_FLAG(biped->biped.flags, _biped_airborne_bit))
-		{
-			biped_update_airborne(biped_index, &animation);
-		}
-		else if (biped->biped.landing!=NONE)
-		{
-			biped_update_landing(biped_index, &animation);
-		}
-		else if (TEST_FLAG(biped->biped.flags, _biped_slipping_bit))
-		{
-			biped_update_slipping(biped_index, &animation);
-		}
+			if (TEST_FLAG(biped->object.damage_flags, _object_dead_bit))
+			{
+				biped_update_dead(biped_index, &animation);
+			}
+			else if (TEST_FLAG(biped->biped.flags, _biped_airborne_bit))
+			{
+				biped_update_airborne(biped_index, &animation);
+			}
+			else if (biped->biped.landing!=NONE)
+			{
+				biped_update_landing(biped_index, &animation);
+			}
+			else if (TEST_FLAG(biped->biped.flags, _biped_slipping_bit))
+			{
+				biped_update_slipping(biped_index, &animation);
+			}
 
-		biped_verify_object_vectors(biped_index, "post-dead/air/land/slip");
+			biped_verify_object_vectors(biped_index, "post-dead/air/land/slip");
+		}
 
 		if (!biped->biped.player_melee_ticks)
 		{

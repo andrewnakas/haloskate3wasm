@@ -60,6 +60,7 @@ symbols in this file:
 /* ---------- headers */
 
 #include "cseries.h"
+#include "skate/skate_halo.h"
 #include "cseries/errors.h"
 #include "render.h"
 #include "render_cameras_internal.h"
@@ -417,6 +418,7 @@ static void render_window(
 
 	bink_playback_render();
 	render_camera_debug_frustum(&render.camera, &render.frustum);
+	skate_halo_render(); /* HaloSkate3: the board */
 	render_debug();
 	editor_render();
 	rasterizer_debug_draw();

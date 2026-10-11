@@ -1,5 +1,6 @@
 #include "skater.hpp"
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 namespace skate {
@@ -417,8 +418,13 @@ void Skater::step_air(World &w, const skate_input &in, float steer)
 	{
 		Vec3 cn = *contact;
 		float into = vel.dot(cn);
+		Vec3 flat_before{vel.x, 0, vel.z};
 		if (into < 0)
 			vel -= cn * into;
+		// A glancing wall in the air turns rider and board with the new direction of travel.
+		Vec3 flat_after{vel.x, 0, vel.z};
+		if (cn.y < 0.55f && flat_before.length() > 0.8f && flat_after.length() > 0.8f)
+			heading += wrap_pi(std::atan2(flat_after.x, flat_after.z) - std::atan2(flat_before.x, flat_before.z));
 		if (cn.y > 0.55f && vel.y <= 0.5f)
 			land(cn, -before.dot(cn));
 		else if (cn.y < 0.3f && -into > t.wall_bail_speed)
@@ -472,7 +478,10 @@ void Skater::land(Vec3 normal, float into_speed)
 	{
 		for (auto &a : tricks)
 			combo.add(a.name, a.points, events);
-		start_bail(flip_unfinished ? "flip" : grabbing ? "grab" : into_speed > t.max_landing_speed ? "impact" : "angle");
+		char why[48];
+		std::snprintf(why, sizeof(why), "%s %.0f deg %.1f m/s", flip_unfinished ? "flip" : grabbing ? "grab" :
+			into_speed > t.max_landing_speed ? "impact" : "angle", deg, into_speed);
+		start_bail(why);
 		return;
 	}
 	// Spins count once they're within landing tolerance.

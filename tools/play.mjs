@@ -14,6 +14,9 @@ const secs = Number(arg('secs', 120));
 const keys = arg('keys', '');
 const shot = arg('shot', 'docs/shots/latest.png');
 const grep = arg('grep', '');
+const wait = Number(arg('wait', keys ? secs - 30 : secs));
+const after = arg('after', ''); // wait for a log line containing this before counting --wait
+let afterSeen = 0;
 
 const browser = await chromium.launch({
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -25,6 +28,7 @@ const t0 = Date.now();
 const stamp = () => ((Date.now() - t0) / 1000).toFixed(1).padStart(6);
 page.on('console', m => { const t = m.text(); if (!grep || t.includes(grep)) console.log(stamp(), m.type(), t.slice(0, 400)); });
 page.on('pageerror', e => console.log(stamp(), 'PAGEERROR', e.message));
+page.on('console', m => { if (after && !afterSeen && m.text().includes(after)) afterSeen = Date.now(); });
 page.on('worker', w => w.on('console', m => console.log(stamp(), 'worker', m.text().slice(0, 400))));
 await page.goto(url);
 
@@ -33,22 +37,25 @@ const deadline = Date.now() + secs * 1000;
 fs.mkdirSync(path.dirname(shot), { recursive: true });
 let n = 0;
 const snap = async (tag) => { const p = shot.replace(/\.png$/, `-${tag}.png`); await page.screenshot({ path: p }); console.log(stamp(), 'shot', p); };
-while (Date.now() < deadline - (keys ? 30000 : 0)) {
-  await page.waitForTimeout(10000);
+if (after) { while (!afterSeen && Date.now() < deadline) await page.waitForTimeout(500); console.log(stamp(), 'seen', after); }
+const waitUntil = (after ? (afterSeen || Date.now()) : t0) + wait * 1000;
+while (Date.now() < waitUntil) {
+  await page.waitForTimeout(Math.min(15000, Math.max(100, waitUntil - Date.now())));
   await snap(String(n++).padStart(2, '0'));
-  const running = await page.evaluate(() => !!(window.__haloRunning || document.body.classList.contains('playing'))).catch(() => false);
-  if (running && keys) break;
 }
 if (keys) {
   await page.mouse.click(640, 360);
   for (const step of keys.split(',')) {
     const [key, hold] = step.split(':');
+    if (step.startsWith('type=')) { await page.keyboard.type(step.slice(5), { delay: 40 }); continue; }
+    if (key === '_') { await page.waitForTimeout(Number(hold) * 1000); continue; }
     await page.keyboard.down(key);
     await page.waitForTimeout(Number(hold || 0.1) * 1000);
     await page.keyboard.up(key);
   }
   await page.waitForTimeout(2000);
   await snap('keys');
+  while (Date.now() < deadline) await page.waitForTimeout(1000);
 }
 await snap('end');
 await browser.close();

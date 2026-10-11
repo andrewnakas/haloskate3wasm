@@ -118,6 +118,7 @@ symbols in this file:
 /* ---------- headers */
 
 #include "director.h"
+#include "skate/skate_halo.h"
 
 #include "camera_scripting.h"
 #include "dead_camera.h"
@@ -331,6 +332,12 @@ short director_desired_perspective(
 	short following = FALSE;
 
 	*perspective = 0;
+	/* HaloSkate3: the chase camera while skating */
+	if (skate_halo_unit_is_skating(unit_index))
+	{
+		*perspective = 4;
+		return TRUE;
+	}
 	if (unit_index != NONE)
 	{
 		struct unit_datum *unit = unit_get(unit_index);

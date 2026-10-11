@@ -215,6 +215,7 @@ def generate_web_build(n: Writer, sln: Any) -> None:
 
     n.comment("Web build (ninja web); see port/web/README.md")
     n.variable("web_emcc", emcc)
+    n.variable("web_empp", str(Path(emcc).with_name("em++")))
     n.rule(
         name="web_cc",
         command=f"{compile_launcher(sln)}$web_emcc -MMD -MF $out.d $cflags -c $in -o $out",
@@ -283,6 +284,17 @@ def generate_web_build(n: Writer, sln: Any) -> None:
         add_object(source, posix_cflags if source.name.startswith("posix_") else platform_cflags)
     for source in sorted((PORT_DIR / "src").glob("*.c")):
         add_object(source, posix_cflags if source.name in ("web_stubs.c", "web_net.c") else platform_cflags)
+    # HaloSkate3: the skate library (../skate, C++17). Standard C++ ABI (not the game's
+    # multivalue one): only the C API in skate/include/skate_api.h crosses into the game, and it
+    # passes scalars and pointers only.
+    skate_dir = Path("../skate")
+    skate_cflags = " ".join([
+        "-pthread", "-mmultivalue", "-mbulk-memory", "-mnontrapping-fptoint", "-msimd128", "-O2", "-g2", "-flto",
+        "-std=c++17", "-fno-exceptions", "-fno-rtti", f"-I{skate_dir}/include",
+    ])
+    for source in sorted((skate_dir / "src").glob("*.cpp")):
+        add_object(source, skate_cflags)
+
     # the high-res HUD, titles and fonts (tools/embed_assets.py), as on Linux
     # (--web-clean: without the HUD redraws, which are traced from the retail
     # HUD; the clean-room maps bring their own HUD)
@@ -307,7 +319,8 @@ def generate_web_build(n: Writer, sln: Any) -> None:
     link_flags = " ".join(LINK_FLAGS + [f"--js-library {library_js}", f"--pre-js {stream_batch_js}", f"--pre-js {pre_js}"])
     n.rule(
         name="web_link",
-        command=f"$web_emcc $ldflags -o $out @$out.rsp",
+        # em++ links the C++ runtime the skate library needs
+        command=f"$web_empp $ldflags -o $out @$out.rsp",
         description="WEB LINK $out",
         rspfile="$out.rsp",
         rspfile_content="$in_newline",

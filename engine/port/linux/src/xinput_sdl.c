@@ -180,6 +180,9 @@ static BYTE analog(BOOL down)
 	return down ? 0xff : 0x00;
 }
 
+/* HaloSkate3: keys beside the emulated gamepad, read by source/skate/skate_halo.c */
+unsigned skate_platform_keys;
+
 static void keyboard_gamepad(const struct platform_input_state *input, XINPUT_GAMEPAD *pad)
 {
 	const unsigned char *k = input->keys;
@@ -200,6 +203,22 @@ static void keyboard_gamepad(const struct platform_input_state *input, XINPUT_GA
 		pad->sThumbLY = (SHORT)(y * 32767 * length);
 	}
 
+	skate_platform_keys =
+		(k[SDL_SCANCODE_B] ? 1u << 0 : 0) |
+		(k[SDL_SCANCODE_LSHIFT] || k[SDL_SCANCODE_RSHIFT] ? 1u << 1 : 0) |
+		(k[SDL_SCANCODE_SPACE] ? 1u << 2 : 0) |
+		(k[SDL_SCANCODE_UP] ? 1u << 4 : 0) |
+		(k[SDL_SCANCODE_DOWN] ? 1u << 5 : 0) |
+		(k[SDL_SCANCODE_LEFT] ? 1u << 6 : 0) |
+		(k[SDL_SCANCODE_RIGHT] ? 1u << 7 : 0) |
+		(k[SDL_SCANCODE_W] ? 1u << 8 : 0) |
+		(k[SDL_SCANCODE_A] ? 1u << 9 : 0) |
+		(k[SDL_SCANCODE_S] ? 1u << 10 : 0) |
+		(k[SDL_SCANCODE_D] ? 1u << 11 : 0) |
+		(k[SDL_SCANCODE_Q] ? 1u << 12 : 0) |
+		(k[SDL_SCANCODE_X] ? 1u << 13 : 0) |
+		(k[SDL_SCANCODE_C] || k[SDL_SCANCODE_LCTRL] ? 1u << 14 : 0) |
+		(k[SDL_SCANCODE_E] ? 1u << 15 : 0);
 	if (k[SDL_SCANCODE_UP]) pad->wButtons |= XINPUT_GAMEPAD_DPAD_UP;
 	if (k[SDL_SCANCODE_DOWN]) pad->wButtons |= XINPUT_GAMEPAD_DPAD_DOWN;
 	if (k[SDL_SCANCODE_LEFT]) pad->wButtons |= XINPUT_GAMEPAD_DPAD_LEFT;
