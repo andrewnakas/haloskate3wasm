@@ -48,7 +48,7 @@
     <div class="help short"><kbd>B</kbd> board · <kbd>H</kbd> controls</div>
     <div class="help long"><kbd>W</kbd>/<kbd>Space</kbd> push · <kbd>A D</kbd> carve/spin · <kbd>S</kbd> brake ·
       <kbd>↓ then ↑</kbd> ollie · <kbd>↓ then ↖/↗</kbd> kick/heelflip · <kbd>↓ then ←/→</kbd> shove-it ·
-      <kbd>Shift</kbd> manual · <kbd>Q</kbd>/<kbd>X</kbd> grab · <kbd>E</kbd>+carve powerslide · <kbd>B</kbd> off board · <kbd>H</kbd> hide</div>`;
+      <kbd>Shift</kbd> manual · <kbd>Q</kbd> grab · <kbd>X</kbd>+carve powerslide · <kbd>B</kbd> off board · <kbd>H</kbd> hide</div>`;
   document.body.appendChild(hud);
 
   const $ = (id) => document.getElementById(id);
@@ -141,7 +141,7 @@
         <tr><td>Arrows</td><td>flick-it (right stick): pull ↓ then flick ↑ to ollie, ↓ then ↖ kickflip, ↓ then ↗ heelflip,
           ↓ then sweep ← / → shove-its, ↑ then ↓ nollie, ← → hardflip, scoop ← ↙ ↓ ↗ for a 360 flip</td></tr>
         <tr><td>Shift / C</td><td>manual / nose manual (W S to balance)</td></tr>
-        <tr><td>Q / X</td><td>grabs · E with a carve: powerslide</td></tr>
+        <tr><td>Q / X</td><td>grab · X with a carve: powerslide · E still enters vehicles</td></tr>
         <tr><td>Mouse</td><td>aim and shoot while you ride: kills mid-trick score big</td></tr>
       </table>`;
     panel.after(card);

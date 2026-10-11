@@ -182,6 +182,9 @@ static BYTE analog(BOOL down)
 
 /* HaloSkate3: keys beside the emulated gamepad, read by source/skate/skate_halo.c */
 unsigned skate_platform_keys;
+/* the right stick as the player held it; while skating (set by the game) the game sees it centred */
+short skate_platform_right_stick[2];
+int skate_platform_skating;
 
 static void keyboard_gamepad(const struct platform_input_state *input, XINPUT_GAMEPAD *pad)
 {
@@ -578,6 +581,14 @@ DWORD WINAPI XInputGetState(HANDLE device, PXINPUT_STATE state)
 		if (count > 0)
 			sdl_gamepad_state(gamepads[0], &state->Gamepad);
 		test_input_gamepad(&state->Gamepad);
+		skate_platform_right_stick[0] = state->Gamepad.sThumbRX;
+		skate_platform_right_stick[1] = state->Gamepad.sThumbRY;
+		if (skate_platform_skating)
+		{
+			/* HaloSkate3: on the board the right stick flicks tricks, it does not look */
+			state->Gamepad.sThumbRX = 0;
+			state->Gamepad.sThumbRY = 0;
+		}
 		if (abs(state->Gamepad.sThumbRX) > STICK_AIMING_DEFLECTION ||
 			abs(state->Gamepad.sThumbRY) > STICK_AIMING_DEFLECTION)
 		{

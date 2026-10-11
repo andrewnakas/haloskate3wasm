@@ -17,7 +17,8 @@ Controls (keyboard / gamepad):
 	A D / left stick            carve, spin in the air
 	arrows / right stick        flick-it: pull back then flick (ollie, kickflip, 360 flip...)
 	Shift                       manual        C / left stick click  nose manual
-	Q, X / white, black         grabs         E / X                 powerslide (with a carve)
+	Q / white, black            grabs         X (key) / X (pad)     powerslide (with a carve)
+	E                           still Halo's action: vehicles, weapons
 */
 
 #include "cseries.h"
@@ -47,6 +48,8 @@ Controls (keyboard / gamepad):
 void platform_log(char const *format, ...);
 void web_note_skate(char const *json); /* port/web/src/web_main.c */
 extern unsigned skate_platform_keys;
+extern short skate_platform_right_stick[2];
+extern int skate_platform_skating;
 
 /* ---------- constants */
 
@@ -84,6 +87,7 @@ static struct
 	void *rails_bsp;  /* the collision BSP the rails were derived from */
 	skate_pose pose;  /* the latest, for the board's render */
 	boolean have_pose;
+	boolean reenter; /* the rider sat in a vehicle: back on the board where they got out */
 } skate_globals;
 
 /* ---------- conversion */
@@ -155,17 +159,18 @@ static void skate_halo_read_input(short gamepad_index, skate_input *in)
 	{
 		in->left_stick[0] = stick_value(pad->sticks[_gamepad_stick_left].x);
 		in->left_stick[1] = stick_value(pad->sticks[_gamepad_stick_left].y);
-		rx = stick_value(pad->sticks[_gamepad_stick_right].x);
-		ry = stick_value(pad->sticks[_gamepad_stick_right].y);
+		/* the raw stick: the game's copy is centred while skating (port/linux/src/xinput_sdl.c) */
+		rx = stick_value(skate_platform_right_stick[0]);
+		ry = stick_value(skate_platform_right_stick[1]);
 		if (pad->analog_buttons[_gamepad_analog_button_a] > 64 || in->left_stick[1] > 0.5f)
 			in->buttons |= SKATE_BUTTON_PUSH;
 		if (in->left_stick[1] < -0.5f)
 			in->buttons |= SKATE_BUTTON_BRAKE;
-		if (pad->analog_buttons[_gamepad_analog_button_white] > 64)
+		if (pad->analog_buttons[_gamepad_analog_button_white] > 64 && !(keys & SKATE_KEY_Q))
 			in->buttons |= SKATE_BUTTON_GRAB_LEFT;
-		if (pad->analog_buttons[_gamepad_analog_button_black] > 64)
+		if (pad->analog_buttons[_gamepad_analog_button_black] > 64 && !(keys & SKATE_KEY_X))
 			in->buttons |= SKATE_BUTTON_GRAB_RIGHT;
-		if (pad->analog_buttons[_gamepad_analog_button_x] > 64)
+		if (pad->analog_buttons[_gamepad_analog_button_x] > 64 && !(keys & SKATE_KEY_E))
 			in->buttons |= SKATE_BUTTON_POWERSLIDE;
 		if (pad->buttons[_gamepad_binary_button_left_thumb])
 			in->buttons |= SKATE_BUTTON_NOSE_MANUAL;
@@ -205,9 +210,7 @@ static void skate_halo_read_input(short gamepad_index, skate_input *in)
 	if (keys & SKATE_KEY_Q)
 		in->buttons |= SKATE_BUTTON_GRAB_LEFT;
 	if (keys & SKATE_KEY_X)
-		in->buttons |= SKATE_BUTTON_GRAB_RIGHT;
-	if (keys & SKATE_KEY_E)
-		in->buttons |= SKATE_BUTTON_POWERSLIDE;
+		in->buttons = (in->buttons & ~SKATE_BUTTON_GRAB_RIGHT) | SKATE_BUTTON_POWERSLIDE;
 
 	in->right_stick[0] = rx;
 	in->right_stick[1] = ry;
@@ -331,6 +334,7 @@ static void skate_halo_dismount(char const *why)
 	}
 	skate_globals.skating = FALSE;
 	skate_globals.biped_index = NONE;
+	skate_platform_skating = FALSE;
 	skate_halo_hud_post("{\"e\":\"off\"}");
 	platform_log("skate: off the board (%s)", why);
 }
@@ -354,7 +358,16 @@ void skate_halo_initialize(void)
 
 boolean skate_halo_unit_is_skating(long unit_index)
 {
-	return skate_globals.skating && unit_index != NONE && unit_index == skate_globals.biped_index;
+	if (!skate_globals.skating || unit_index == NONE || unit_index != skate_globals.biped_index)
+		return FALSE;
+	if (object_get(unit_index)->object.parent_object_index != NONE)
+	{
+		/* in a vehicle (or carried): the board waits */
+		skate_globals.reenter = TRUE;
+		skate_platform_skating = FALSE;
+		return FALSE;
+	}
+	return TRUE;
 }
 
 /* biped_update, every tick, for every biped standing on its own: decides whether this one
@@ -474,6 +487,22 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 		short step;
 
 		skate_halo_derive_rails();
+		if (skate_globals.reenter)
+		{
+			float position[3];
+			float velocity[3];
+			real_vector3d forward;
+			skate_globals.reenter = FALSE;
+			unit_get_facing_vector(biped_index, &forward);
+			halo_to_skate(&biped->object.position, position);
+			position[1] += 0.05f;
+			halo_to_skate((real_point3d *)&biped->object.translational_velocity, velocity);
+			velocity[0] *= HALO_TICKS_PER_SECOND;
+			velocity[1] *= HALO_TICKS_PER_SECOND;
+			velocity[2] *= HALO_TICKS_PER_SECOND;
+			skate_skater_enter(skate_globals.skater, position, velocity, (float)atan2(forward.j, forward.i));
+		}
+		skate_platform_skating = TRUE;
 		skate_halo_read_input(gamepad_index, &in);
 		/* two 60 Hz steps per Halo tick; the first sees the midpoint of the stick's travel so a
 		quick flick still leaves the recognizer two samples */
