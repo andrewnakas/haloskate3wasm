@@ -102,6 +102,7 @@ symbols in this file:
 /* ---------- headers */
 
 #include "cseries.h"
+#include "skate/skate_halo.h"
 #include "damage.h"
 #include "ai/ai.h"
 #include "effects/effects.h"
@@ -1112,6 +1113,14 @@ static void object_damage_aftermath(
 				player_index,
 				TRUE);
 		}
+	}
+
+	/* HaloSkate3: a kill from the board scores in the skate combo */
+	if (TEST_FLAG(being_damaged_flags, _object_being_damaged_body_depleted_bit) &&
+		TEST_FLAG(_object_mask_unit, object->object.type) &&
+		skate_halo_unit_is_skating(damage->owner_object_index))
+	{
+		skate_halo_unit_killed_enemy(FALSE);
 	}
 
 	if (TEST_FLAG(_object_mask_unit, object->object.type))

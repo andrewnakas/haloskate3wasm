@@ -15,12 +15,13 @@ The site's service worker:
 
 'use strict';
 
-const CACHE_PREFIX = 'halo-web-';
-const META_CACHE = 'halo-web-meta';
+const CACHE_PREFIX = 'haloskate3-';
+const META_CACHE = 'haloskate3-meta';
 const SHELL = [
   './',
   'index.html',
   'app.js',
+  'skate-hud.js',
   'input.js',
   'net.js',
   'cache.js',

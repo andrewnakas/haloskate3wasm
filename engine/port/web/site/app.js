@@ -1127,6 +1127,7 @@ can run the game, copies the game data out of the player's disc image
         else if (kind === 4) log('thread error: ' + text);
         else if (kind === 7) supplyMap(text);
         else if (kind === 8) noteMap(text);
+        else if (kind === 9) { if (window.HaloSkateHUD) window.HaloSkateHUD.message(text); }
         else if (kind === 5) {
           log('game: ' + text);
           $('fatal').querySelector('h2').textContent = 'The game quit';

@@ -49,13 +49,16 @@ if (keys) {
     const [key, hold] = step.split(':');
     if (step.startsWith('type=')) { await page.keyboard.type(step.slice(5), { delay: 40 }); continue; }
     if (key === '_') { await page.waitForTimeout(Number(hold) * 1000); continue; }
-    await page.keyboard.down(key);
+    const chord = key.split('+');
+    for (const k of chord) await page.keyboard.down(k);
     await page.waitForTimeout(Number(hold || 0.1) * 1000);
-    await page.keyboard.up(key);
+    for (const k of chord.reverse()) await page.keyboard.up(k);
   }
   await page.waitForTimeout(2000);
   await snap('keys');
   while (Date.now() < deadline) await page.waitForTimeout(1000);
 }
 await snap('end');
+const probe = arg('probe', '');
+if (probe) console.log(stamp(), 'probe', await page.evaluate(probe).catch(e => 'error ' + e.message));
 await browser.close();

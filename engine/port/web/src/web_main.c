@@ -73,6 +73,12 @@ void web_note_map(const char *name)
 	web_js_post(8, name);
 }
 
+/* HaloSkate3: a skate event or status for the page's HUD (JSON, source/skate/skate_halo.c) */
+void web_note_skate(const char *json)
+{
+	web_js_post(9, json);
+}
+
 /* ---------- start */
 
 

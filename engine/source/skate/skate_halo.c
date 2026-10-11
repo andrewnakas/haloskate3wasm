@@ -40,6 +40,7 @@ Controls (keyboard / gamepad):
 /* ---------- the platform layer's (port/linux/src) */
 
 void platform_log(char const *format, ...);
+void web_note_skate(char const *json); /* port/web/src/web_main.c */
 extern unsigned skate_platform_keys;
 
 /* ---------- constants */
@@ -52,6 +53,8 @@ extern unsigned skate_platform_keys;
 
 static void skate_halo_board_pose(skate_pose const *pose);
 static void skate_halo_hud_event(skate_event const *event);
+static void skate_halo_hud_status(skate_pose const *pose);
+static void skate_halo_hud_post(char const *json);
 
 /* ---------- globals */
 
@@ -235,6 +238,7 @@ static void skate_halo_mount(long biped_index)
 	skate_skater_enter(skate_globals.skater, position, velocity, facing);
 	skate_globals.skating = TRUE;
 	skate_globals.biped_index = biped_index;
+	skate_halo_hud_post("{\"e\":\"on\"}");
 	platform_log("skate: on the board at %.2f %.2f %.2f (feet %.3f below the origin)", biped->object.position.x,
 		biped->object.position.y, biped->object.position.z, skate_globals.feet_height);
 }
@@ -250,6 +254,7 @@ static void skate_halo_dismount(char const *why)
 	}
 	skate_globals.skating = FALSE;
 	skate_globals.biped_index = NONE;
+	skate_halo_hud_post("{\"e\":\"off\"}");
 	platform_log("skate: off the board (%s)", why);
 }
 
@@ -398,6 +403,8 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 		animation->state_desired = _unit_state_idle;
 
 		skate_halo_board_pose(&pose);
+		if ((skate_globals.ticks % 3) == 0)
+			skate_halo_hud_status(&pose);
 		if ((skate_globals.ticks % 60) == 0)
 		{
 			platform_log("skate: state %d at %.2f %.2f %.2f speed %.1f m/s combo %u x%u banked %llu",
@@ -575,7 +582,40 @@ static void skate_halo_board_pose(skate_pose const *pose)
 	skate_globals.have_pose = TRUE;
 }
 
+/* ---------- the page's HUD (port/web/site/skate-hud.js) */
+
+static void skate_halo_hud_post(char const *json)
+{
+#ifdef HALO_WEB
+	web_note_skate(json);
+#else
+	(void)json;
+#endif
+}
+
 static void skate_halo_hud_event(skate_event const *event)
 {
-	(void)event;
+	char json[128];
+
+	switch (event->type)
+	{
+	case SKATE_EVENT_TRICK: snprintf(json, sizeof(json), "{\"e\":\"trick\",\"n\":\"%s\",\"p\":%u}", event->name, event->points); break;
+	case SKATE_EVENT_LANDED: snprintf(json, sizeof(json), "{\"e\":\"land\",\"c\":%d}", event->value); break;
+	case SKATE_EVENT_BAIL: snprintf(json, sizeof(json), "{\"e\":\"bail\",\"n\":\"%s\"}", event->name); break;
+	case SKATE_EVENT_GRIND: snprintf(json, sizeof(json), "{\"e\":\"grind\",\"n\":\"%s\"}", event->name); break;
+	case SKATE_EVENT_BANKED: snprintf(json, sizeof(json), "{\"e\":\"bank\",\"p\":%u}", event->points); break;
+	default: return;
+	}
+	skate_halo_hud_post(json);
+}
+
+static void skate_halo_hud_status(skate_pose const *pose)
+{
+	char json[192];
+	char const *trick = skate_skater_current_trick(skate_globals.skater);
+	float speed = sqrtf(pose->velocity[0] * pose->velocity[0] + pose->velocity[2] * pose->velocity[2]);
+
+	snprintf(json, sizeof(json), "{\"e\":\"s\",\"st\":%d,\"k\":\"%s\",\"c\":%u,\"m\":%u,\"b\":%llu,\"v\":%.1f}",
+		pose->state, trick ? trick : "", pose->combo_value, pose->combo_multiplier, pose->banked, speed);
+	skate_halo_hud_post(json);
 }
