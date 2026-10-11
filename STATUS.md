@@ -34,7 +34,8 @@ its VLT tuning numbers are not in the repo or on this machine. So the C++ librar
 - **M4 done.** Grind rails derived from each level's collision BSP at mount / BSP switch (C++ port of
   `grind_world/derive.rs`, its 7 Rust tests ported): Blood Gulch 296 rails, a10 1078, a30 1518. Rails near you glow
   faintly. Verified in game with `HALO_SKATE_RAILTEST=1`: 50-50 grind, ride off the end, bank.
-- **M5 (in progress).** Campaign verified on a30 (docs/shots/m5-a30-campaign.png): board on as soon as you have
+- **M5 done.** Live smoke test green (smoke run 38136209030: rails derived, on the board, ollie popped).
+  Campaign verified on a30 (docs/shots/m5-a30-campaign.png): board on as soon as you have
   control, 9 m/s pushes, kickflip, downhill rolling. Board pauses during cutscenes / scripted control / vehicles and
   resumes where Chief ends up. Gamepad right stick flicks (Halo's look is centred while skating). README, CLEANROOM,
   ASSETS, live smoke workflow (`.github/workflows/smoke.yml`).
@@ -53,7 +54,21 @@ its VLT tuning numbers are not in the repo or on this machine. So the C++ librar
 - M5: gamepad right-stick vs aim, touch, docs (README/CLEANROOM/ASSETS), smoke workflow.
 
 ## Questions for the user
-(none yet)
+- License for `skate/`: it ports skate-3-rust-engine code, which has no LICENSE file upstream (its README says GPL-3.0).
+  No license file was added here; engine/ is CC0 (OpenCE). Pick one when you can.
+- Touch controls: Halo's touch pad still works on foot, but there is no on-screen flick stick for skating yet.
 
-## For the user
-(filled in at the end of the night)
+## Known issues / next
+- Skate tuning is hand-authored (no stock VLT data): feel free to tweak `skate/src/skater.hpp` `Tuning`.
+- The board is boxes drawn with Halo's debug triangles; Chief keeps Halo's idle/crouch animation (no skate poses).
+- Flick patterns are authored (16 tricks); late flips, grabs by name, rotations naming and pumping are simple.
+- a10's opening is the scripted cryo sequence: the board waits until you have control.
+- Rarely, a level's first download stalls in a fresh browser profile (halo-cleanroom's known first-download issue);
+  reloading fixes it.
+
+## For the user (what to test in the morning)
+1. Open https://andrewnakas.github.io/haloskate3wasm/ , start the campaign (or a Blood Gulch match).
+2. Press **B** to drop the board. W/Space push, A/D carve, arrows to flick: ↓ then ↑ ollie, ↓ then ↖ kickflip,
+   ↓ then ↗ heelflip, ↓ then sweep ←/→ shove-it, ← → hardflip. Shift manual, Q grab, X powerslide.
+3. Look for the faint blue strips: land on them to grind. Shoot while airborne for "Kickflip Kill" style bonuses.
+4. Gamepad: d-pad ↓ board, right stick flicks.
