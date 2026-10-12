@@ -40,6 +40,21 @@ its VLT tuning numbers are not in the repo or on this machine. So the C++ librar
   resumes where Chief ends up. Gamepad right stick flicks (Halo's look is centred while skating). README, CLEANROOM,
   ASSETS, live smoke workflow (`.github/workflows/smoke.yml`).
 
+## 2026-10-12: full Skate 3 runtime (plan: ~/.claude/plans/snazzy-waddling-wombat.md)
+User's choice: replace the lite skater with the **full Skate 3 runtime** (skatecore-cpp's `driver::Sim`, bit-identical
+to the Rust engine), **Master Chief stays the rider**, campaign starts on foot and B switches to the board.
+- `skate3/` = skatecore-cpp `src/s3` vendored at f6c351a (+ `Sim::travel_to`), C API `skate3/include/s3_halo.h`,
+  native tests `make -C skate3 test` (18 checks: flat push/ollie/teleport, quarter-pipe ride to 4.35 m, 3000-tick
+  random course).
+- The page streams the cleanroom pack (core.pack, 90 MB) from `/skate3-cleanroom/` after a level loads (Cache Storage
+  `haloskate3-skatepack`); never committed. `?skate=lite` or no pack -> the lite skater.
+- The runtime's world = the level's collision BSP as triangles (faced along each surface's plane, two-sided ones
+  both ways), rebuilt on BSP switches; the runtime derives grind rails from it itself.
+- Verified headless: Blood Gulch (5.5k tris, world 0.8 s): push 8 m/s, ollie + kickflip landed, HUD "OLLIE + KICKFLIP";
+  campaign a30 (28k tris, 1.3 s): walk, B on, push, ollie, B off, walk, B on (docs/shots/full-bg-keys.png,
+  full-a30-keys.png).
+- halo.wasm grew 3.5 -> 11 MB.
+
 ## Testing tips (for the loop)
 - Fast route to gameplay: `?auto=1&quick=host&map=bloodgulch&room=0&env=HALO_SKATE_AUTO=1`, then press Enter twice
   (lobby -> start). Campaign: `?auto=1&map=a10&level=a10&room=0&env=HALO_SKATE_AUTO=1,HALO_SKATE_FAST=1` (the a10 intro
@@ -59,6 +74,9 @@ its VLT tuning numbers are not in the repo or on this machine. So the C++ librar
 - Touch controls: Halo's touch pad still works on foot, but there is no on-screen flick stick for skating yet.
 
 ## Known issues / next
+- Full runtime: camera is still Halo's chase cam (not Skate 3's); Chief stays upright on walls/vert; scenery
+  objects (crates, vehicles) are not in the skate world; key mapping for B/X/Y buttons is a guess (Shift = X,
+  X = B, Q/C = grab triggers); wasm size (11 MB) could shrink.
 - Skate tuning is hand-authored (no stock VLT data): feel free to tweak `skate/src/skater.hpp` `Tuning`.
 - The board is boxes drawn with Halo's debug triangles; Chief keeps Halo's idle/crouch animation (no skate poses).
 - Flick patterns are authored (16 tricks); late flips, grabs by name, rotations naming and pumping are simple.
