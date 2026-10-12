@@ -185,6 +185,9 @@ unsigned skate_platform_keys;
 /* the right stick as the player held it; while skating (set by the game) the game sees it centred */
 short skate_platform_right_stick[2];
 int skate_platform_skating;
+/* the first gamepad's skate buttons as held (bit 0 Y, bit 1 LB, bit 2 RB) and its triggers, 0..255 */
+unsigned skate_platform_pad_buttons;
+int skate_platform_pad_triggers[2];
 
 static void keyboard_gamepad(const struct platform_input_state *input, XINPUT_GAMEPAD *pad)
 {
@@ -576,18 +579,45 @@ DWORD WINAPI XInputGetState(HANDLE device, PXINPUT_STATE state)
 		platform_input_read(&input, TRUE);
 		mouse_poll(&input);
 		wheel_update();
+		XINPUT_GAMEPAD keyboard;
+
 		if (!console_is_active())
 			keyboard_gamepad(&input, &state->Gamepad);
+		keyboard = state->Gamepad;
+		skate_platform_pad_buttons = 0;
+		skate_platform_pad_triggers[0] = skate_platform_pad_triggers[1] = 0;
 		if (count > 0)
+		{
 			sdl_gamepad_state(gamepads[0], &state->Gamepad);
+			/* HaloSkate3: Y gets on and off the board (Halo keeps the keyboard's weapon switch) */
+			if (SDL_GetGamepadButton(gamepads[0], SDL_GAMEPAD_BUTTON_NORTH))
+			{
+				skate_platform_pad_buttons |= 1u << 0;
+				state->Gamepad.bAnalogButtons[XINPUT_GAMEPAD_Y] = keyboard.bAnalogButtons[XINPUT_GAMEPAD_Y];
+			}
+			if (SDL_GetGamepadButton(gamepads[0], SDL_GAMEPAD_BUTTON_LEFT_SHOULDER))
+				skate_platform_pad_buttons |= 1u << 1;
+			if (SDL_GetGamepadButton(gamepads[0], SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))
+				skate_platform_pad_buttons |= 1u << 2;
+			skate_platform_pad_triggers[0] = SDL_GetGamepadAxis(gamepads[0], SDL_GAMEPAD_AXIS_LEFT_TRIGGER) * 255 / 32767;
+			skate_platform_pad_triggers[1] = SDL_GetGamepadAxis(gamepads[0], SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) * 255 / 32767;
+		}
 		test_input_gamepad(&state->Gamepad);
 		skate_platform_right_stick[0] = state->Gamepad.sThumbRX;
 		skate_platform_right_stick[1] = state->Gamepad.sThumbRY;
 		if (skate_platform_skating)
 		{
-			/* HaloSkate3: on the board the right stick flicks tricks, it does not look */
-			state->Gamepad.sThumbRX = 0;
-			state->Gamepad.sThumbRY = 0;
+			/* HaloSkate3: on the board LB is the combat hold, never Halo's own button */
+			state->Gamepad.bAnalogButtons[XINPUT_GAMEPAD_WHITE] = keyboard.bAnalogButtons[XINPUT_GAMEPAD_WHITE];
+			if (!(skate_platform_pad_buttons & (1u << 1)))
+			{
+				/* without it, the right stick flicks tricks (it does not look) and the pad's
+				triggers grab (the mouse still fires) */
+				state->Gamepad.sThumbRX = 0;
+				state->Gamepad.sThumbRY = 0;
+				state->Gamepad.bAnalogButtons[XINPUT_GAMEPAD_LEFT_TRIGGER] = keyboard.bAnalogButtons[XINPUT_GAMEPAD_LEFT_TRIGGER];
+				state->Gamepad.bAnalogButtons[XINPUT_GAMEPAD_RIGHT_TRIGGER] = keyboard.bAnalogButtons[XINPUT_GAMEPAD_RIGHT_TRIGGER];
+			}
 		}
 		if (abs(state->Gamepad.sThumbRX) > STICK_AIMING_DEFLECTION ||
 			abs(state->Gamepad.sThumbRY) > STICK_AIMING_DEFLECTION)

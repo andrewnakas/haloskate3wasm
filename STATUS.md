@@ -54,6 +54,10 @@ to the Rust engine), **Master Chief stays the rider**, campaign starts on foot a
   campaign a30 (28k tris, 1.3 s): walk, B on, push, ollie, B off, walk, B on (docs/shots/full-bg-keys.png,
   full-a30-keys.png).
 - halo.wasm grew 3.5 -> 11 MB.
+- Gamepad controls (user's request): **Y** gets on/off the board; while riding, **hold LB** = combat (right stick
+  aims, triggers fire/grenade, HUD shows COMBAT); let go = right stick flicks again and the triggers grab. Halo never
+  sees the pad's Y or (while riding) LB. Verified with a fake gamepad: `node tools/padtest.mjs` (5/5 pass, ammo used
+  under LB+RT).
 
 ## Testing tips (for the loop)
 - Fast route to gameplay: `?auto=1&quick=host&map=bloodgulch&room=0&env=HALO_SKATE_AUTO=1`, then press Enter twice

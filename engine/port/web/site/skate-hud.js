@@ -18,6 +18,9 @@
     opacity: 0; transform: scale(1.4); transition: opacity .2s, transform .2s; }
   #skate-hud .bail.show { opacity: 1; transform: scale(1); }
   #skate-hud .pack { position: absolute; bottom: 16%; right: 4%; font-size: clamp(11px, 1.3vw, 15px); color: #ffd36a; }
+  #skate-hud .combat { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); font-size: clamp(12px, 1.6vw, 20px);
+    font-weight: 700; letter-spacing: .12em; color: #ff8a5c; display: none; }
+  #skate-hud .combat.show { display: block; }
   #skate-hud .speed { position: absolute; bottom: 12%; right: 4%; font-size: clamp(12px, 1.6vw, 20px); color: #9fd9ff; }
   #skate-hud .help { position: absolute; bottom: 4%; left: 50%; transform: translateX(-50%); font-size: clamp(10px, 1.2vw, 14px);
     background: rgba(5, 18, 32, .72); border: 1px solid rgba(127, 212, 255, .35); border-radius: 10px; padding: .55em 1em; color: #d6efff; white-space: nowrap; }
@@ -47,10 +50,11 @@
     <div class="bail" id="skate-bail">BAILED</div>
     <div class="speed" id="skate-speed"></div>
     <div class="pack" id="skate-pack"></div>
-    <div class="help short"><kbd>B</kbd> board · <kbd>H</kbd> controls</div>
+    <div class="combat" id="skate-combat">COMBAT · right stick aims · triggers fire</div>
+    <div class="help short"><kbd>B</kbd>/<kbd>Y</kbd> board · <kbd>H</kbd> controls</div>
     <div class="help long"><kbd>W</kbd>/<kbd>Space</kbd> push · <kbd>A D</kbd> carve/spin · <kbd>S</kbd> brake ·
       <kbd>↓ then ↑</kbd> ollie · <kbd>↓ then ↖/↗</kbd> kick/heelflip · <kbd>↓ then ←/→</kbd> shove-it ·
-      <kbd>Shift</kbd> manual · <kbd>Q</kbd> grab · <kbd>X</kbd>+carve powerslide · <kbd>B</kbd> off board · <kbd>H</kbd> hide</div>`;
+      <kbd>Q</kbd>/<kbd>C</kbd> grab · <kbd>B</kbd> off board · pad: <kbd>Y</kbd> board, hold <kbd>LB</kbd> to aim and fire · <kbd>H</kbd> hide</div>`;
   document.body.appendChild(hud);
 
   const $ = (id) => document.getElementById(id);
@@ -120,6 +124,7 @@
         $('skate-banked').textContent = fmt(m.b);
         $('skate-combo').textContent = m.c > 0 ? `${fmt(m.c)}  ×${m.m}` : '';
         $('skate-speed').textContent = `${Math.round(m.v * 3.6)} km/h`;
+        $('skate-combat').classList.toggle('show', !!m.f);
         if (m.k && (m.st === 1 || m.st === 4)) {
           $('skate-trick').textContent = m.k;
           $('skate-trick').classList.add('show');
@@ -141,7 +146,9 @@
     card.className = 'skate-card';
     card.innerHTML = `<h3>Skate the Halo campaign</h3>
       <table>
-        <tr><td>B</td><td>hop on or off the board (gamepad: d-pad down)</td></tr>
+        <tr><td>B / Y</td><td>hop on or off the board (keyboard B, gamepad Y)</td></tr>
+        <tr><td>Hold LB</td><td>gamepad combat while riding: right stick aims, triggers fire and throw grenades.
+          Let go and the right stick flicks tricks again (the triggers grab)</td></tr>
         <tr><td>W / Space</td><td>push · S brake · A D carve, spin in the air</td></tr>
         <tr><td>Arrows</td><td>flick-it (right stick): pull ↓ then flick ↑ to ollie, ↓ then ↖ kickflip, ↓ then ↗ heelflip,
           ↓ then sweep ← / → shove-its, ↑ then ↓ nollie, ← → hardflip, scoop ← ↙ ↓ ↗ for a 360 flip</td></tr>

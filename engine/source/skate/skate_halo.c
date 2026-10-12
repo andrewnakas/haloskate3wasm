@@ -12,7 +12,9 @@ Halo's own walking: the board moves the biped, the director shows the chase came
 keeps everything else (aiming, shooting, damage, AI, scripts).
 
 Controls (keyboard / gamepad):
-	B / d-pad down (pad only)   get on or off the board
+	B / Y (pad)                 get on or off the board
+	hold LB (pad)               combat: the right stick aims, the triggers fire and throw grenades;
+	                            let go and the right stick flicks tricks again, the triggers grab
 	W, Space / A                push          S / left stick back   brake
 	A D / left stick            carve, spin in the air
 	arrows / right stick        flick-it: pull back then flick (ollie, kickflip, 360 flip...)
@@ -53,6 +55,11 @@ void web_note_skate(char const *json); /* port/web/src/web_main.c */
 extern unsigned skate_platform_keys;
 extern short skate_platform_right_stick[2];
 extern int skate_platform_skating;
+extern unsigned skate_platform_pad_buttons; /* bit 0 Y, bit 1 LB, bit 2 RB (the raw first gamepad) */
+extern int skate_platform_pad_triggers[2];
+#define SKATE_PAD_Y (1u << 0)
+#define SKATE_PAD_LB (1u << 1)
+#define SKATE_PAD_RB (1u << 2)
 int web_skate_pack_state(void);   /* port/web/src/web_main.c: 0 idle, 1 fetching, 2 arrived, 3 unavailable */
 void web_skate_pack_request(void);
 
@@ -178,16 +185,20 @@ static void skate_halo_read_input(short gamepad_index, skate_input *in)
 		in->left_stick[0] = stick_value(pad->sticks[_gamepad_stick_left].x);
 		in->left_stick[1] = stick_value(pad->sticks[_gamepad_stick_left].y);
 		/* the raw stick: the game's copy is centred while skating (port/linux/src/xinput_sdl.c) */
-		rx = stick_value(skate_platform_right_stick[0]);
-		ry = stick_value(skate_platform_right_stick[1]);
+		if (!(skate_platform_pad_buttons & SKATE_PAD_LB))
+		{
+			/* combat (LB held) aims with it instead; the triggers grab */
+			rx = stick_value(skate_platform_right_stick[0]);
+			ry = stick_value(skate_platform_right_stick[1]);
+			if (skate_platform_pad_triggers[0] > 64)
+				in->buttons |= SKATE_BUTTON_GRAB_LEFT;
+			if (skate_platform_pad_triggers[1] > 64)
+				in->buttons |= SKATE_BUTTON_GRAB_RIGHT;
+		}
 		if (pad->analog_buttons[_gamepad_analog_button_a] > 64 || in->left_stick[1] > 0.5f)
 			in->buttons |= SKATE_BUTTON_PUSH;
 		if (in->left_stick[1] < -0.5f)
 			in->buttons |= SKATE_BUTTON_BRAKE;
-		if (pad->analog_buttons[_gamepad_analog_button_white] > 64 && !(keys & SKATE_KEY_Q))
-			in->buttons |= SKATE_BUTTON_GRAB_LEFT;
-		if (pad->analog_buttons[_gamepad_analog_button_black] > 64 && !(keys & SKATE_KEY_X))
-			in->buttons |= SKATE_BUTTON_GRAB_RIGHT;
 		if (pad->analog_buttons[_gamepad_analog_button_x] > 64 && !(keys & SKATE_KEY_E))
 			in->buttons |= SKATE_BUTTON_POWERSLIDE;
 		if (pad->buttons[_gamepad_binary_button_left_thumb])
@@ -467,13 +478,22 @@ static void skate_full_read_pad(short gamepad_index, int *buttons, int stick[4],
 		/* the raw stick: the game's copy is centred while skating (port/linux/src/xinput_sdl.c) */
 		stick[2] = skate_platform_right_stick[0];
 		stick[3] = skate_platform_right_stick[1];
-		/* A pushes; the bumpers grab (the triggers stay Halo's fire and grenade) */
+		/* A pushes; the triggers grab and RB is RB, unless LB holds combat (then they are Halo's) */
 		if (pad->analog_buttons[_gamepad_analog_button_a] > 64 && !(keys & SKATE_KEY_SPACE))
 			*buttons |= S3H_A;
-		if (pad->analog_buttons[_gamepad_analog_button_white] > 64)
-			*lt = 255;
-		if (pad->analog_buttons[_gamepad_analog_button_black] > 64)
-			*rt = 255;
+		if (!(skate_platform_pad_buttons & SKATE_PAD_LB))
+		{
+			*lt = skate_platform_pad_triggers[0];
+			*rt = skate_platform_pad_triggers[1];
+			if (skate_platform_pad_buttons & SKATE_PAD_RB)
+				*buttons |= S3H_RB;
+		}
+		else
+		{
+			/* combat: the right stick aims */
+			stick[2] = 0;
+			stick[3] = 0;
+		}
 		if (pad->buttons[_gamepad_binary_button_left_thumb] && !(keys & SKATE_KEY_C))
 			*buttons |= S3H_LTHUMB;
 	}
@@ -668,9 +688,9 @@ static boolean skate_full_step(long biped_index, short gamepad_index, struct uni
 		char json[224];
 		int state = skate_globals.wiping_out ? SKATE_STATE_BAIL : !skate_globals.grounded ? SKATE_STATE_AIR : SKATE_STATE_ROLLING;
 		char const *trick = s3h_trick_name();
-		snprintf(json, sizeof(json), "{\"e\":\"s\",\"st\":%d,\"k\":\"%s\",\"c\":%.0f,\"m\":%.0f,\"b\":%.0f,\"v\":%.1f}",
+		snprintf(json, sizeof(json), "{\"e\":\"s\",\"st\":%d,\"k\":\"%s\",\"c\":%.0f,\"m\":%.0f,\"b\":%.0f,\"v\":%.1f,\"f\":%d}",
 			state, trick ? trick : "", view[46], view[47], view[49] + view[48] + (float)skate_globals.kill_bonus,
-			skate_globals.full_speed);
+			skate_globals.full_speed, (skate_platform_pad_buttons & SKATE_PAD_LB) ? 1 : 0);
 		skate_halo_hud_post(json);
 	}
 	if ((skate_globals.ticks % 60) == 0)
@@ -833,14 +853,12 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 	if ((keys & SKATE_KEY_BOARD) && !(skate_globals.previous_keys & SKATE_KEY_BOARD))
 		toggle = TRUE;
 	skate_globals.previous_keys = keys;
-	if (input_has_gamepad(gamepad_index))
 	{
-		struct gamepad_state const *pad = input_get_gamepad_state(gamepad_index);
-		/* the d-pad without the arrow keys: a real gamepad's d-pad down */
-		short down = pad->buttons[_gamepad_binary_button_dpad_down] && !(keys & SKATE_KEY_DOWN);
-		if (down && !skate_globals.previous_dpad_down)
+		/* the gamepad's Y (the platform layer keeps it from Halo's weapon switch) */
+		short y = (skate_platform_pad_buttons & SKATE_PAD_Y) != 0;
+		if (y && !skate_globals.previous_dpad_down)
 			toggle = TRUE;
-		skate_globals.previous_dpad_down = down;
+		skate_globals.previous_dpad_down = y;
 	}
 	/* install the pack as soon as the page has it (and build the world while nobody rides) */
 	if (skate_full_poll() && !skate_globals.skating && !skate_halo_paused(biped_index) &&
