@@ -27,6 +27,10 @@ can run the game, copies the game data out of the player's disc image
     (window.HALO_BROWSER_CONFIG?.quickMap ?? 'beavercreek');
   const QUICK_MAPS = ['ui.map', QUICK_MAP + '.map'];
   const diagnosticOptions = new URLSearchParams(location.search);
+  // Embedded elsewhere (aigamemashups.com proxies this page to give it the isolation headers), the maps and
+  // the skate pack still come straight from GitHub Pages: root-relative data bases resolve against it.
+  const DATA_ORIGIN = /\.github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) ? '' : 'https://andrewnakas.github.io';
+  const dataUrl = (base) => (base.startsWith('/') ? DATA_ORIGIN + base : base);
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const pixelFrames = diagnosticOptions.get('frame_transport') === 'rgba' ||
@@ -329,7 +333,7 @@ can run the game, copies the game data out of the player's disc image
       try {
         const urls = f.parts ? Array.from({ length: f.parts }, (_, i) => `${f.name}.part${i}`) : [f.name];
         for (let i = 0; i < urls.length; i++) {
-          const response = await fetch((f.base || 'clean/') + urls[i] + '?v=' + f.sha256.slice(0, 12));
+          const response = await fetch(dataUrl(f.base || 'clean/') + urls[i] + '?v=' + f.sha256.slice(0, 12));
           if (!response.ok) throw new Error(`${f.name}: HTTP ${response.status}`);
           const reader = response.body.getReader();
           const chunks = [];
@@ -415,7 +419,7 @@ can run the game, copies the game data out of the player's disc image
     const done = ok => module?._web_skate_pack_done?.(ok ? 1 : 0);
     const hud = text => window.HaloSkateHUD?.packStatus?.(text);
     if (diagnosticOptions.get('skate') === 'lite') { log('skate pack: lite skater requested'); return done(false); }
-    const base = diagnosticOptions.get('skatebase') || '/skate3-cleanroom/';
+    const base = dataUrl(diagnosticOptions.get('skatebase') || '/skate3-cleanroom/');
     try {
       const response = await fetch(base + 'pack.json', { cache: 'no-cache' });
       if (!response.ok) throw new Error(`pack.json: HTTP ${response.status}`);
