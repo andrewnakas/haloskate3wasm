@@ -17,6 +17,10 @@ MW2×Skate 3 mashup. Live at https://andrewnakas.github.io/haloskate3wasm/
 - Data: numeric tuning + gesture->trick tables compiled in as constants. **Never ship Skate 3 animation
   banks, meshes, textures or audio.** Animation-driven physics bits get procedural substitutes; document
   each in `skate/PORTING.md`.
+- Full runtime (2026-10-12, user's choice): `skate3/` = skatecore-cpp's `driver::Sim` (see skate3/VENDOR.md).
+  Its data pack (core.pack) is fetched at run time from `/skate3-cleanroom/` and cached in the browser;
+  **never commit or re-host it.** The lite `skate/` stays as the fallback (`?skate=lite`, or no pack).
+  Master Chief is the rider (no Skate 3 skater mesh).
 - Single-player browser only. 3rd-person chase cam on the board, 1st-person on foot. G toggles board.
 - Maps: do NOT re-host. maps.json points at absolute same-origin bases
   `/halo-cleanroom/clean/`, `/halo-cleanroom-maps1/clean/`, `/halo-cleanroom-maps2/clean/`.

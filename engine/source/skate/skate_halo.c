@@ -27,6 +27,7 @@ Controls (keyboard / gamepad):
 #include "game/players.h"
 #include "input/input.h"
 #include "objects/objects.h"
+#include "physics/bsp3d.h"
 #include "physics/collision_bsp.h"
 #include "physics/collision_bsp_definitions.h"
 #include "physics/collisions.h"
@@ -36,12 +37,14 @@ Controls (keyboard / gamepad):
 #include "units/units.h"
 #include "skate_halo.h"
 #include "../../../skate/include/skate_api.h"
+#include "../../../skate3/include/s3_halo.h"
 
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* ---------- the platform layer's (port/linux/src) */
 
@@ -50,6 +53,8 @@ void web_note_skate(char const *json); /* port/web/src/web_main.c */
 extern unsigned skate_platform_keys;
 extern short skate_platform_right_stick[2];
 extern int skate_platform_skating;
+int web_skate_pack_state(void);   /* port/web/src/web_main.c: 0 idle, 1 fetching, 2 arrived, 3 unavailable */
+void web_skate_pack_request(void);
 
 /* ---------- constants */
 
@@ -88,6 +93,19 @@ static struct
 	skate_pose pose;  /* the latest, for the board's render */
 	boolean have_pose;
 	boolean reenter; /* the rider sat in a vehicle: back on the board where they got out */
+
+	/* the full Skate 3 runtime (../../../skate3, s3_halo.h) */
+	boolean full_disabled; /* HALO_SKATE_ENGINE=lite, no pack, or the runtime failed: the lite skater rides */
+	boolean full;          /* this ride is on the full runtime */
+	boolean pack_installed;
+	void *world_bsp;       /* the collision BSP the runtime's world was built from */
+	float deck[13];        /* the deck body: position, orientation (x y z w), velocities */
+	float root[3];         /* the rider's root */
+	float full_speed;
+	boolean grounded;
+	boolean wiping_out;
+	unsigned long long kill_bonus; /* trick-kill points on top of the runtime's own score */
+	char trick[64];
 } skate_globals;
 
 /* ---------- conversion */
@@ -283,6 +301,387 @@ static void skate_halo_derive_rails(void)
 		found, bsp->surfaces.count, t);
 }
 
+/* ---------- the full Skate 3 runtime
+
+The page fetches the cleanroom pack (core.pack) once a level is up and hands it over through
+web_main.c; until then, or if it never arrives, the lite skater rides. The runtime's world is the
+level's collision BSP as a triangle soup (rails are derived from it inside the runtime), rebuilt
+when the level switches BSPs. */
+
+#define FULL_DECK_TOP_METRES 0.03f   /* the biped's origin (its feet) above the deck body's centre */
+#define FULL_ROOT_HEIGHT_METRES 0.0f  /* the rider's root above its feet (it rides at deck height) */
+
+static void skate_halo_hud_post(char const *json);
+
+#ifdef HALO_WEB
+double emscripten_get_now(void);
+#endif
+
+static double skate_now_ms(void)
+{
+#ifdef HALO_WEB
+	return emscripten_get_now();
+#else
+	return (double)clock() * 1000.0 / CLOCKS_PER_SEC;
+#endif
+}
+
+#define COLLISION_SURFACE_TWO_SIDED_BIT 0 /* collision_bsp.c's _collision_surface_two_sided_bit */
+
+/* the pack: ask the page for it, install it once it arrived. TRUE when the runtime can ride. */
+static boolean skate_full_poll(void)
+{
+	if (skate_globals.full_disabled)
+		return FALSE;
+	if (skate_globals.pack_installed)
+		return TRUE;
+#ifdef HALO_WEB
+	switch (web_skate_pack_state())
+	{
+	case 0:
+		web_skate_pack_request();
+		break;
+	case 2:
+	{
+		int files = s3h_pack_install();
+		if (files > 0)
+		{
+			skate_globals.pack_installed = TRUE;
+			platform_log("skate3: pack installed (%d files)", files);
+			skate_halo_hud_post("{\"e\":\"pack\",\"ok\":1}");
+			return TRUE;
+		}
+		platform_log("skate3: pack install failed: %s", s3h_error());
+		skate_globals.full_disabled = TRUE;
+		skate_halo_hud_post("{\"e\":\"pack\",\"ok\":0}");
+		break;
+	}
+	case 3:
+		platform_log("skate3: no pack, the lite skater rides");
+		skate_globals.full_disabled = TRUE;
+		break;
+	}
+#else
+	skate_globals.full_disabled = TRUE;
+#endif
+	return FALSE;
+}
+
+/* the runtime's world from the current collision BSP (no-op while it is current) */
+static boolean skate_full_build_world(long biped_index)
+{
+	struct collision_bsp *bsp = global_collision_bsp_get();
+	long surface_index;
+	long kept = 0;
+	long two_sided = 0;
+	float batch[64 * 9];
+	int batched = 0;
+	real_point3d points[MAXIMUM_VERTICES_PER_COLLISION_SURFACE];
+	float spawn[3];
+	float forward[3];
+	real_vector3d facing;
+	double started;
+
+	if (!bsp)
+		return FALSE;
+	if ((void *)bsp == skate_globals.world_bsp && s3h_ready())
+		return TRUE;
+	started = skate_now_ms();
+	s3h_world_begin();
+	for (surface_index = 0; surface_index < bsp->surfaces.count; ++surface_index)
+	{
+		struct collision_surface const *surface =
+			TAG_BLOCK_GET_ELEMENT(&bsp->surfaces, surface_index, struct collision_surface);
+		short count = collision_surface_polygon(bsp, surface_index, points);
+		real_plane3d plane;
+		short i;
+		short side;
+		short sides;
+
+		if (count < 3)
+			continue;
+		bsp3d_get_plane_from_designator(&bsp->bsp3d, surface->plane_designator, &plane);
+		sides = TEST_FLAG(surface->flags, COLLISION_SURFACE_TWO_SIDED_BIT) ? 2 : 1;
+		two_sided += sides - 1;
+		for (i = 1; i + 1 < count; ++i)
+		{
+			real_point3d const *a = &points[0];
+			real_point3d const *b = &points[i];
+			real_point3d const *c = &points[i + 1];
+			/* face along the surface's plane (the runtime's triangles are one-sided) */
+			real ux = b->x - a->x, uy = b->y - a->y, uz = b->z - a->z;
+			real vx = c->x - a->x, vy = c->y - a->y, vz = c->z - a->z;
+			real nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+			boolean flip = nx * plane.n.i + ny * plane.n.j + nz * plane.n.k < 0.f;
+			for (side = 0; side < sides; ++side)
+			{
+				boolean reverse = flip != (side == 1);
+				halo_to_skate(a, &batch[batched * 9 + 0]);
+				halo_to_skate(reverse ? c : b, &batch[batched * 9 + 3]);
+				halo_to_skate(reverse ? b : c, &batch[batched * 9 + 6]);
+				if (++batched == 64)
+				{
+					s3h_world_add(batch, batched);
+					batched = 0;
+				}
+				++kept;
+			}
+		}
+	}
+	if (batched)
+		s3h_world_add(batch, batched);
+
+	halo_to_skate(&object_get(biped_index)->object.position, spawn);
+	spawn[1] += 0.05f;
+	unit_get_facing_vector(biped_index, &facing);
+	halo_to_skate((real_point3d *)&facing, forward);
+	if (!s3h_world_end(spawn, forward))
+	{
+		platform_log("skate3: world failed (%ld triangles): %s", kept, s3h_error());
+		skate_globals.full_disabled = TRUE;
+		skate_halo_hud_post("{\"e\":\"pack\",\"ok\":0}");
+		return FALSE;
+	}
+	skate_globals.world_bsp = bsp;
+	platform_log("skate3: world built from %ld surfaces: %ld triangles (%ld two-sided), %d kept, %.0f ms",
+		bsp->surfaces.count, kept, two_sided, s3h_world_count(), skate_now_ms() - started);
+	return TRUE;
+}
+
+/* the runtime takes a raw XInput sample: build one from the pad and the keyboard */
+static void skate_full_read_pad(short gamepad_index, int *buttons, int stick[4], int *lt, int *rt)
+{
+	struct gamepad_state const *pad = NULL;
+	unsigned keys = skate_platform_keys;
+
+	*buttons = 0;
+	*lt = 0;
+	*rt = 0;
+	stick[0] = stick[1] = stick[2] = stick[3] = 0;
+	if (gamepad_index != NONE && input_has_gamepad(gamepad_index))
+		pad = input_get_gamepad_state(gamepad_index);
+	if (pad)
+	{
+		stick[0] = pad->sticks[_gamepad_stick_left].x;
+		stick[1] = pad->sticks[_gamepad_stick_left].y;
+		/* the raw stick: the game's copy is centred while skating (port/linux/src/xinput_sdl.c) */
+		stick[2] = skate_platform_right_stick[0];
+		stick[3] = skate_platform_right_stick[1];
+		/* A pushes; the bumpers grab (the triggers stay Halo's fire and grenade) */
+		if (pad->analog_buttons[_gamepad_analog_button_a] > 64 && !(keys & SKATE_KEY_SPACE))
+			*buttons |= S3H_A;
+		if (pad->analog_buttons[_gamepad_analog_button_white] > 64)
+			*lt = 255;
+		if (pad->analog_buttons[_gamepad_analog_button_black] > 64)
+			*rt = 255;
+		if (pad->buttons[_gamepad_binary_button_left_thumb] && !(keys & SKATE_KEY_C))
+			*buttons |= S3H_LTHUMB;
+	}
+	/* arrows flick like the right stick (full deflection, diagonals on the circle) */
+	{
+		int x = ((keys & SKATE_KEY_RIGHT) ? 1 : 0) - ((keys & SKATE_KEY_LEFT) ? 1 : 0);
+		int y = ((keys & SKATE_KEY_UP) ? 1 : 0) - ((keys & SKATE_KEY_DOWN) ? 1 : 0);
+		if (x || y)
+		{
+			float length = (x && y) ? 0.70710678f : 1.f;
+			stick[2] = (int)(x * 32767 * length);
+			stick[3] = (int)(y * 32767 * length);
+		}
+	}
+	/* A D steer, S crouches back; W and Space push; Q / C grab; Shift is X (manual stance) */
+	{
+		int x = ((keys & SKATE_KEY_D) ? 1 : 0) - ((keys & SKATE_KEY_A) ? 1 : 0);
+		if (x)
+			stick[0] = x * 32767;
+		if (keys & SKATE_KEY_S)
+			stick[1] = -32767;
+		else if (keys & SKATE_KEY_W)
+			stick[1] = 0;
+	}
+	if (keys & (SKATE_KEY_SPACE | SKATE_KEY_W))
+		*buttons |= S3H_A;
+	if (keys & SKATE_KEY_Q)
+		*lt = 255;
+	if (keys & SKATE_KEY_C)
+		*rt = 255;
+	if (keys & SKATE_KEY_SHIFT)
+		*buttons |= S3H_X;
+	if (keys & SKATE_KEY_X)
+		*buttons |= S3H_B;
+}
+
+static void skate_full_travel(long biped_index)
+{
+	float position[3];
+	float forward[3];
+	real_vector3d facing;
+
+	halo_to_skate(&object_get(biped_index)->object.position, position);
+	position[1] += 0.05f;
+	unit_get_facing_vector(biped_index, &facing);
+	halo_to_skate((real_point3d *)&facing, forward);
+	if (!s3h_travel(position, forward))
+		platform_log("skate3: travel failed: %s", s3h_error());
+}
+
+static void skate_full_hud_events(char const *events)
+{
+	char json[160];
+	char const *line = events;
+
+	while (line && *line)
+	{
+		char const *end = strchr(line, '\n');
+		int length = end ? (int)(end - line) : (int)strlen(line);
+		if (length > 6 && strncmp(line, "TRICK:", 6) == 0)
+		{
+			snprintf(skate_globals.trick, sizeof(skate_globals.trick), "%.*s", length - 6, line + 6);
+			snprintf(json, sizeof(json), "{\"e\":\"trick\",\"n\":\"%s\",\"p\":0}", skate_globals.trick);
+			skate_halo_hud_post(json);
+			platform_log("skate3: trick %s", skate_globals.trick);
+		}
+		else if (length > 6 && strncmp(line, "SCORE:", 6) == 0)
+		{
+			platform_log("skate3: score %.*s", length - 6, line + 6);
+		}
+		else if ((length == 7 && strncmp(line, "WIPEOUT", 7) == 0) || (length == 4 && strncmp(line, "BAIL", 4) == 0))
+		{
+			skate_halo_hud_post("{\"e\":\"bail\",\"n\":\"bail\"}");
+			platform_log("skate3: %.*s", length, line);
+		}
+		else if (length == 7 && strncmp(line, "LANDING", 7) == 0)
+		{
+			skate_halo_hud_post("{\"e\":\"land\",\"c\":1}");
+			skate_globals.trick[0] = 0;
+		}
+		line = end ? end + 1 : NULL;
+	}
+}
+
+/* one Halo tick on the full runtime: two 60 Hz steps, then the biped follows the board */
+static boolean skate_full_step(long biped_index, short gamepad_index, struct unit_animation_update_data *animation)
+{
+	struct biped_datum *biped = biped_get(biped_index);
+	int buttons, stick[4], lt, rt;
+	short step;
+	float const *view;
+	real_point3d position;
+	real_vector3d velocity;
+
+	if (!skate_full_build_world(biped_index))
+		return FALSE;
+	if (skate_globals.reenter)
+	{
+		skate_globals.reenter = FALSE;
+		skate_full_travel(biped_index);
+	}
+	skate_platform_skating = TRUE;
+	skate_full_read_pad(gamepad_index, &buttons, stick, &lt, &rt);
+	for (step = 0; step < 2; ++step)
+	{
+		int rx = stick[2], ry = stick[3];
+		if (step == 0)
+		{
+			/* the midpoint of the stick's travel, so a quick flick still leaves two samples */
+			rx = (int)(0.5f * (stick[2] + skate_globals.stick_previous[0]));
+			ry = (int)(0.5f * (stick[3] + skate_globals.stick_previous[1]));
+		}
+		if (!s3h_step(buttons, stick[0], stick[1], rx, ry, lt, rt))
+		{
+			platform_log("skate3: step failed: %s; the lite skater takes over", s3h_error());
+			skate_globals.full_disabled = TRUE;
+			skate_globals.full = FALSE;
+			skate_globals.world_bsp = NULL;
+			return FALSE;
+		}
+		skate_full_hud_events(s3h_events());
+	}
+	skate_globals.stick_previous[0] = (float)stick[2];
+	skate_globals.stick_previous[1] = (float)stick[3];
+
+	view = s3h_view();
+	memcpy(skate_globals.deck, s3h_board() + S3H_BOARD_DECK * 13, sizeof(skate_globals.deck));
+	memcpy(skate_globals.root, view + 50, sizeof(skate_globals.root));
+	skate_globals.grounded = view[40] > 0.5f;
+	skate_globals.wiping_out = view[41] > 0.5f;
+	skate_globals.full_speed = view[34];
+	skate_globals.have_pose = TRUE;
+
+	if (skate_globals.wiping_out)
+	{
+		/* the rider tumbles away from the board: the body follows the rider */
+		float feet[3];
+		feet[0] = view[50];
+		feet[1] = view[51] - FULL_ROOT_HEIGHT_METRES;
+		feet[2] = view[52];
+		skate_to_halo(feet, &position);
+		skate_to_halo(view + 53, (real_point3d *)&velocity);
+	}
+	else
+	{
+		float feet[3];
+		feet[0] = skate_globals.deck[0];
+		feet[1] = skate_globals.deck[1] + FULL_DECK_TOP_METRES;
+		feet[2] = skate_globals.deck[2];
+		skate_to_halo(feet, &position);
+		skate_to_halo(skate_globals.deck + 7, (real_point3d *)&velocity);
+	}
+	velocity.i /= HALO_TICKS_PER_SECOND;
+	velocity.j /= HALO_TICKS_PER_SECOND;
+	velocity.k /= HALO_TICKS_PER_SECOND;
+	{
+		/* the body faces along the deck's nose (+Z in board space), upright */
+		float const *q = skate_globals.deck + 3;
+		float nose[3];
+		real_vector3d forward;
+		real_vector3d up;
+		real length;
+		nose[0] = 2.f * (q[0] * q[2] + q[3] * q[1]);
+		nose[1] = 2.f * (q[1] * q[2] - q[3] * q[0]);
+		nose[2] = 1.f - 2.f * (q[0] * q[0] + q[1] * q[1]);
+		skate_to_halo(nose, (real_point3d *)&forward);
+		forward.k = 0.f;
+		length = (real)sqrt(forward.i * forward.i + forward.j * forward.j);
+		if (length > 1e-3f && !skate_globals.wiping_out)
+		{
+			forward.i /= length;
+			forward.j /= length;
+		}
+		else
+			unit_get_facing_vector(biped_index, &forward);
+		up.i = 0.f;
+		up.j = 0.f;
+		up.k = 1.f;
+		object_set_position(biped_index, &position, &forward, &up);
+		biped->unit.desired_facing_vector = forward;
+	}
+	biped->object.translational_velocity = velocity;
+	biped->biped.pathfinding_point = position;
+	SET_FLAG(biped->biped.flags, _biped_airborne_bit, FALSE);
+	biped->biped.landing = NONE;
+
+	animation->crouching = skate_globals.wiping_out || !skate_globals.grounded || (stick[1] < -16000);
+	animation->state_desired = _unit_state_idle;
+
+	if ((skate_globals.ticks % 3) == 0)
+	{
+		char json[224];
+		int state = skate_globals.wiping_out ? SKATE_STATE_BAIL : !skate_globals.grounded ? SKATE_STATE_AIR : SKATE_STATE_ROLLING;
+		char const *trick = s3h_trick_name();
+		snprintf(json, sizeof(json), "{\"e\":\"s\",\"st\":%d,\"k\":\"%s\",\"c\":%.0f,\"m\":%.0f,\"b\":%.0f,\"v\":%.1f}",
+			state, trick ? trick : "", view[46], view[47], view[49] + view[48] + (float)skate_globals.kill_bonus,
+			skate_globals.full_speed);
+		skate_halo_hud_post(json);
+	}
+	if ((skate_globals.ticks % 60) == 0)
+	{
+		platform_log("skate3: %s/%s at %.2f %.2f %.2f speed %.1f m/s score %.0f x%.0f total %.0f",
+			s3h_state_name(), s3h_motion_state(), position.x, position.y, position.z, skate_globals.full_speed,
+			view[46], view[47], view[49]);
+	}
+	return TRUE;
+}
+
 /* ---------- mounting */
 
 static void skate_halo_mount(long biped_index)
@@ -292,6 +691,21 @@ static void skate_halo_mount(long biped_index)
 	float velocity[3];
 	real_vector3d forward;
 	float facing;
+
+	skate_globals.biped_index = biped_index;
+	skate_globals.full = FALSE;
+	if (skate_full_poll() && skate_full_build_world(biped_index))
+	{
+		skate_full_travel(biped_index);
+		skate_globals.full = TRUE;
+		skate_globals.skating = TRUE;
+		skate_globals.have_pose = FALSE;
+		skate_globals.reenter = FALSE;
+		skate_halo_hud_post("{\"e\":\"on\"}");
+		platform_log("skate3: on the board (full runtime) at %.2f %.2f %.2f", biped->object.position.x,
+			biped->object.position.y, biped->object.position.z);
+		return;
+	}
 
 	unit_get_facing_vector(biped_index, &forward);
 	facing = (float)atan2(forward.j, forward.i);
@@ -333,6 +747,7 @@ static void skate_halo_dismount(char const *why)
 		SET_FLAG(biped->biped.flags, _biped_airborne_bit, TRUE);
 	}
 	skate_globals.skating = FALSE;
+	skate_globals.full = FALSE;
 	skate_globals.biped_index = NONE;
 	skate_platform_skating = FALSE;
 	skate_halo_hud_post("{\"e\":\"off\"}");
@@ -352,7 +767,10 @@ void skate_halo_initialize(void)
 	skate_globals.fast_cinematics = automatic && automatic[0] == '1';
 	automatic = getenv("HALO_SKATE_RAILTEST");
 	skate_globals.rail_test = automatic && automatic[0] == '1';
+	automatic = getenv("HALO_SKATE_ENGINE");
+	skate_globals.full_disabled = automatic && strcmp(automatic, "lite") == 0;
 	skate_globals.initialized = TRUE;
+	skate_full_poll(); /* the page starts fetching the pack now */
 	platform_log("skate: ready (HaloSkate3, auto mount %s)", skate_globals.auto_mount ? "on" : "off");
 }
 
@@ -424,7 +842,12 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 			toggle = TRUE;
 		skate_globals.previous_dpad_down = down;
 	}
-	if (skate_globals.auto_mount && !skate_globals.skating && skate_globals.ticks > 60 && !skate_halo_paused(biped_index))
+	/* install the pack as soon as the page has it (and build the world while nobody rides) */
+	if (skate_full_poll() && !skate_globals.skating && !skate_halo_paused(biped_index) &&
+		global_collision_bsp_get() != skate_globals.world_bsp)
+		skate_full_build_world(biped_index);
+	if (skate_globals.auto_mount && !skate_globals.skating && skate_globals.ticks > 60 && !skate_halo_paused(biped_index) &&
+		(skate_globals.full_disabled || skate_globals.world_bsp))
 	{
 		skate_globals.auto_mount = FALSE;
 		toggle = TRUE;
@@ -448,7 +871,7 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 		skate_globals.have_pose = FALSE;
 		return FALSE;
 	}
-	if (skate_globals.rail_test && skate_globals.ticks > 90)
+	if (skate_globals.rail_test && !skate_globals.full && skate_globals.ticks > 90)
 	{
 		float here[3];
 		float point[3];
@@ -494,6 +917,17 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 			skate_skater_enter(skate_globals.skater, start, velocity, (float)atan2(tangent[0], tangent[2]));
 			platform_log("skate: rail test: rail %d at %.1f %.1f %.1f", rail, point[0], point[1], point[2]);
 		}
+	}
+
+	if (skate_globals.full)
+	{
+		if (skate_full_step(biped_index, gamepad_index, animation))
+			return TRUE;
+		/* the runtime failed: ride on with the lite skater from here */
+		skate_globals.full = FALSE;
+		skate_halo_dismount("full runtime failed");
+		skate_halo_mount(biped_index);
+		return FALSE;
 	}
 
 	{
@@ -596,6 +1030,32 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 
 void skate_halo_unit_killed_enemy(boolean headshot)
 {
+	if (skate_globals.skating && skate_globals.full)
+	{
+		char json[160];
+		char name[80];
+		unsigned points;
+		if (skate_globals.trick[0])
+		{
+			snprintf(name, sizeof(name), "%s %s", skate_globals.trick, headshot ? "Headshot" : "Kill");
+			points = headshot ? 1500 : 1000;
+		}
+		else if (!skate_globals.grounded)
+		{
+			snprintf(name, sizeof(name), "%s", headshot ? "Airborne Headshot" : "Airborne Kill");
+			points = headshot ? 1200 : 800;
+		}
+		else
+		{
+			snprintf(name, sizeof(name), "%s", headshot ? "Rolling Headshot" : "Rolling Kill");
+			points = headshot ? 600 : 300;
+		}
+		skate_globals.kill_bonus += points;
+		snprintf(json, sizeof(json), "{\"e\":\"trick\",\"n\":\"%s\",\"p\":%u}", name, points);
+		skate_halo_hud_post(json);
+		platform_log("skate3: %s +%u", name, points);
+		return;
+	}
 	if (!skate_globals.skating || !skate_globals.skater)
 		return;
 	{
@@ -752,11 +1212,30 @@ void skate_halo_render(void)
 	if (!skate_globals.skating || !skate_globals.have_pose || skate_globals.biped_index == NONE)
 		return;
 	object = object_get(skate_globals.biped_index);
-	memcpy(board_frame.q, skate_globals.pose.board_rotation, sizeof(board_frame.q));
-	board_frame.origin = object->object.position;
-	board_frame.origin.z -= DECK_HEIGHT_METRES / METRES_PER_WORLD_UNIT + skate_globals.feet_height;
-
-	skate_halo_render_rails();
+	if (skate_globals.full)
+	{
+		/* the runtime's deck body: the model's deck centre sits deck_y + deck_t / 2 above its origin */
+		float origin[3];
+		memcpy(board_frame.q, skate_globals.deck + 3, sizeof(board_frame.q));
+		memcpy(origin, skate_globals.deck, sizeof(origin));
+		skate_to_halo(origin, &board_frame.origin);
+		{
+			real_point3d offset;
+			float down = -(deck_y + 0.5f * deck_t);
+			board_point(0.f, down, 0.f, &offset);
+			/* board_point adds the origin: keep only the rotated offset */
+			board_frame.origin.x = offset.x;
+			board_frame.origin.y = offset.y;
+			board_frame.origin.z = offset.z;
+		}
+	}
+	else
+	{
+		memcpy(board_frame.q, skate_globals.pose.board_rotation, sizeof(board_frame.q));
+		board_frame.origin = object->object.position;
+		board_frame.origin.z -= DECK_HEIGHT_METRES / METRES_PER_WORLD_UNIT + skate_globals.feet_height;
+		skate_halo_render_rails();
+	}
 
 	/* deck: flat middle, nose and tail kicked up */
 	board_box(-half_w, deck_y, -flat, half_w, deck_y + deck_t, flat, &ply);

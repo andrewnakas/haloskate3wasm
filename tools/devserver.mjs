@@ -1,5 +1,6 @@
 // Local dev server: serves dist/ at /haloskate3wasm/ and proxies the halo-cleanroom map
-// repos (same origin on Pages) from andrewnakas.github.io, caching map files on disk.
+// repos (same origin on Pages) from andrewnakas.github.io, caching map files on disk. /skate3-cleanroom/
+// (the skate pack) is proxied too; core.pack comes from the local cleanpack copy when it is there.
 //   node tools/devserver.mjs [port]
 import http from 'node:http';
 import fs from 'node:fs';
@@ -16,8 +17,14 @@ const isolate = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Emb
 
 fs.mkdirSync(cache, { recursive: true });
 
+const localPack = path.join(os.homedir(), 'Documents', 'haloskate-ref', 'cleanpack', 'core.pack');
+
 async function proxy(url, res) {
   const clean = url.split('?')[0];
+  if (clean === '/skate3-cleanroom/core.pack' && fs.existsSync(localPack)) {
+    res.writeHead(200, { ...isolate, 'Content-Type': 'application/octet-stream', 'Content-Length': fs.statSync(localPack).size });
+    return fs.createReadStream(localPack).pipe(res);
+  }
   const file = path.join(cache, clean.replace(/[^a-zA-Z0-9._-]/g, '_'));
   if (!fs.existsSync(file)) {
     const r = await fetch('https://andrewnakas.github.io' + clean);
@@ -34,7 +41,7 @@ async function proxy(url, res) {
 http.createServer(async (req, res) => {
   try {
     const url = decodeURIComponent(req.url);
-    if (/^\/halo-cleanroom(-maps\d)?\//.test(url)) return await proxy(url, res);
+    if (/^\/(halo-cleanroom(-maps\d)?|skate3-cleanroom)\//.test(url)) return await proxy(url, res);
     if (url === '/' || url === '/haloskate3wasm') { res.writeHead(302, { Location: '/haloskate3wasm/' }); return res.end(); }
     let p = url.split('?')[0].replace(/^\/haloskate3wasm/, '');
     if (p.endsWith('/')) p += 'index.html';

@@ -79,6 +79,32 @@ void web_note_skate(const char *json)
 	web_js_post(9, json);
 }
 
+/* ---------- the Skate 3 pack (HaloSkate3)
+
+The full skate runtime (skate3/, s3_halo.h) needs the cleanroom pack. The game asks once
+(Module.haloMessage kind 10); the page streams it into a buffer from s3h_pack_alloc and answers
+through web_skate_pack_done. The game polls the state instead of waiting: it skates on the lite
+library until the pack is in. */
+
+static volatile int skate_pack_state; /* 0 idle, 1 fetching, 2 arrived, 3 unavailable */
+
+EMSCRIPTEN_KEEPALIVE void web_skate_pack_done(int available)
+{
+	__atomic_store_n(&skate_pack_state, available ? 2 : 3, __ATOMIC_RELEASE);
+}
+
+int web_skate_pack_state(void)
+{
+	return __atomic_load_n(&skate_pack_state, __ATOMIC_ACQUIRE);
+}
+
+void web_skate_pack_request(void)
+{
+	int idle = 0;
+	if (__atomic_compare_exchange_n(&skate_pack_state, &idle, 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+		web_js_post(10, "");
+}
+
 /* ---------- start */
 
 

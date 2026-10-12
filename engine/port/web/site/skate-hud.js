@@ -17,6 +17,7 @@
   #skate-hud .bail { position: absolute; left: 0; right: 0; top: 40%; text-align: center; font-size: clamp(28px, 6vw, 72px); font-weight: 800; color: #ff5a4f;
     opacity: 0; transform: scale(1.4); transition: opacity .2s, transform .2s; }
   #skate-hud .bail.show { opacity: 1; transform: scale(1); }
+  #skate-hud .pack { position: absolute; bottom: 16%; right: 4%; font-size: clamp(11px, 1.3vw, 15px); color: #ffd36a; }
   #skate-hud .speed { position: absolute; bottom: 12%; right: 4%; font-size: clamp(12px, 1.6vw, 20px); color: #9fd9ff; }
   #skate-hud .help { position: absolute; bottom: 4%; left: 50%; transform: translateX(-50%); font-size: clamp(10px, 1.2vw, 14px);
     background: rgba(5, 18, 32, .72); border: 1px solid rgba(127, 212, 255, .35); border-radius: 10px; padding: .55em 1em; color: #d6efff; white-space: nowrap; }
@@ -45,6 +46,7 @@
     <div class="line" id="skate-line"></div>
     <div class="bail" id="skate-bail">BAILED</div>
     <div class="speed" id="skate-speed"></div>
+    <div class="pack" id="skate-pack"></div>
     <div class="help short"><kbd>B</kbd> board · <kbd>H</kbd> controls</div>
     <div class="help long"><kbd>W</kbd>/<kbd>Space</kbd> push · <kbd>A D</kbd> carve/spin · <kbd>S</kbd> brake ·
       <kbd>↓ then ↑</kbd> ollie · <kbd>↓ then ↖/↗</kbd> kick/heelflip · <kbd>↓ then ←/→</kbd> shove-it ·
@@ -77,6 +79,9 @@
     let m;
     try { m = JSON.parse(text); } catch { return; }
     switch (m.e) {
+      case 'pack':
+        $('skate-pack').textContent = m.ok ? '' : 'Skate 3 pack unavailable: simple board';
+        break;
       case 'on':
         onBoard = true;
         hud.classList.add('on');
@@ -155,5 +160,6 @@
     }
   }, 1000);
 
-  window.HaloSkateHUD = { message, get onBoard() { return onBoard; } };
+  const packStatus = (text) => { $('skate-pack').textContent = text; };
+  window.HaloSkateHUD = { message, packStatus, get onBoard() { return onBoard; } };
 })();

@@ -138,7 +138,9 @@ LINK_FLAGS = [
     "-sEXIT_RUNTIME=0",
     f"-sINITIAL_MEMORY={WEB_MEMORY_BYTES}",
     "-sALLOW_MEMORY_GROWTH=0",
-    "-sSTACK_SIZE=8MB",
+    "-sSTACK_SIZE=16MB",
+    # the full skate runtime (../skate3) reports panics as C++ exceptions
+    "-fwasm-exceptions",
     "-sDEFAULT_PTHREAD_STACK_SIZE=1MB",
     "-sPTHREAD_POOL_SIZE=10",
     "-sWASMFS=1",
@@ -146,7 +148,7 @@ LINK_FLAGS = [
     "-sMAX_WEBGL_VERSION=2",
     "-sGL_ENABLE_GET_PROC_ADDRESS=1",
     "-sENVIRONMENT=web,worker",
-    "-sEXPORTED_FUNCTIONS=_main,_malloc,_free,_web_shared_state,_web_shared_offsets,_web_quick_play_cancel,_web_quick_play_migrate,_web_quick_play_reconnect,_web_quick_play_hold,_web_quick_play_set_address,_web_quick_play_set_epoch,_web_map_request_done",
+    "-sEXPORTED_FUNCTIONS=_main,_malloc,_free,_web_shared_state,_web_shared_offsets,_web_quick_play_cancel,_web_quick_play_migrate,_web_quick_play_reconnect,_web_quick_play_hold,_web_quick_play_set_address,_web_quick_play_set_epoch,_web_map_request_done,_web_skate_pack_done,_s3h_pack_alloc",
     "-sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP32,HEAPF32,wasmMemory,UTF8ToString,stringToUTF8,lengthBytesUTF8",
     "-sINCOMING_MODULE_JS_API=print,printErr,locateFile,onAbort,preRun,arguments,mainScriptUrlOrBlob,"
     "instantiateWasm,wasmMemory,setStatus,monitorRunDependencies,onRuntimeInitialized",
@@ -294,6 +296,19 @@ def generate_web_build(n: Writer, sln: Any) -> None:
     ])
     for source in sorted((skate_dir / "src").glob("*.cpp")):
         add_object(source, skate_cflags)
+    # HaloSkate3: the full Skate 3 runtime (../skate3: s3::game::driver::Sim behind s3_halo.h). Its
+    # panics are C++ exceptions (caught inside s3_halo.h's functions); bit-exact float math needs
+    # -ffp-contract=off. Not LTO'd: ~690 files would make every link slow.
+    skate3_dir = Path("../skate3")
+    skate3_cflags = " ".join([
+        "-pthread", "-mmultivalue", "-mbulk-memory", "-mnontrapping-fptoint", "-msimd128", "-O2", "-g0",
+        "-std=c++17", "-fwasm-exceptions", "-ffp-contract=off", "-w", f"-I{skate3_dir}/src", f"-I{skate3_dir}/include",
+    ])
+    skate3_sources = sorted(list((skate3_dir / "src" / "s3" / "core").rglob("*.cpp")) +
+                            list((skate3_dir / "src" / "s3" / "game").rglob("*.cpp")) +
+                            list((skate3_dir / "src" / "s3" / "data").glob("*.cpp")))
+    for source in skate3_sources + [skate3_dir / "src" / "halo_host.cpp"]:
+        add_object(source, skate3_cflags)
 
     # the high-res HUD, titles and fonts (tools/embed_assets.py), as on Linux
     # (--web-clean: without the HUD redraws, which are traced from the retail

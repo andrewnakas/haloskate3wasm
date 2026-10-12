@@ -407,6 +407,59 @@ can run the game, copies the game data out of the player's disc image
     done(false);
   }
 
+  // HaloSkate3: the full skate runtime asked for the Skate 3 cleanroom pack (core.pack, ~95 MB, same origin,
+  // never shipped here). Stream it straight into the game's buffer, keep a copy in Cache Storage for next time,
+  // then answer. ?skate=lite skips it (the lite skater rides).
+  async function supplySkatePack() {
+    const module = window.Module;
+    const done = ok => module?._web_skate_pack_done?.(ok ? 1 : 0);
+    const hud = text => window.HaloSkateHUD?.packStatus?.(text);
+    if (diagnosticOptions.get('skate') === 'lite') { log('skate pack: lite skater requested'); return done(false); }
+    const base = diagnosticOptions.get('skatebase') || '/skate3-cleanroom/';
+    try {
+      const response = await fetch(base + 'pack.json', { cache: 'no-cache' });
+      if (!response.ok) throw new Error(`pack.json: HTTP ${response.status}`);
+      const manifest = await response.json();
+      const size = manifest.core.size;
+      const ptr = module._s3h_pack_alloc(size);
+      if (!ptr) throw new Error('no memory for the pack');
+      const cache = await caches.open('haloskate3-skatepack').catch(() => null);
+      let offset = 0;
+      let shown = -1;
+      for (const part of manifest.core.parts) {
+        const url = new URL(base + part + '?h=' + manifest.core.hash, location.href).href;
+        let body = cache && await cache.match(url).catch(() => null);
+        if (!body) {
+          body = await fetch(url);
+          if (!body.ok) throw new Error(`${part}: HTTP ${body.status}`);
+          if (cache) {
+            const copy = body.clone();
+            cache.keys().then(keys => Promise.all(keys.filter(k => k.url !== url).map(k => cache.delete(k))))
+              .then(() => cache.put(url, copy)).catch(error => log('skate pack cache: ' + error.message));
+          }
+        }
+        const reader = body.body.getReader();
+        for (;;) {
+          const { done: end, value } = await reader.read();
+          if (end) break;
+          if (offset + value.length > size) throw new Error('core.pack is larger than pack.json says');
+          module.HEAPU8.set(value, ptr + offset);
+          offset += value.length;
+          const percent = Math.floor(offset / size * 100);
+          if (percent !== shown) { shown = percent; hud(`board loading ${percent}%`); }
+        }
+      }
+      if (offset !== size) throw new Error(`core.pack: got ${offset} of ${size} bytes`);
+      log(`skate pack: ${(size / 1048576).toFixed(0)} MB in`);
+      hud('');
+      done(true);
+    } catch (error) {
+      log('skate pack: ' + error.message);
+      hud('');
+      done(false);
+    }
+  }
+
   // The game is loading a campaign level: fetch the one after it ahead of time.
   function noteMap(name) {
     log(`map ${name}: loading`);
@@ -1128,6 +1181,7 @@ can run the game, copies the game data out of the player's disc image
         else if (kind === 7) supplyMap(text);
         else if (kind === 8) noteMap(text);
         else if (kind === 9) { if (window.HaloSkateHUD) window.HaloSkateHUD.message(text); }
+        else if (kind === 10) supplySkatePack();
         else if (kind === 5) {
           log('game: ' + text);
           $('fatal').querySelector('h2').textContent = 'The game quit';
