@@ -51,10 +51,10 @@
     <div class="speed" id="skate-speed"></div>
     <div class="pack" id="skate-pack"></div>
     <div class="combat" id="skate-combat">COMBAT · right stick aims · triggers fire</div>
-    <div class="help short"><kbd>B</kbd>/<kbd>Y</kbd> board · <kbd>H</kbd> controls</div>
+    <div class="help short"><kbd>B</kbd> board · <kbd>H</kbd> controls</div>
     <div class="help long"><kbd>W</kbd>/<kbd>Space</kbd> push · <kbd>A D</kbd> carve/spin · <kbd>S</kbd> brake ·
       <kbd>↓ then ↑</kbd> ollie · <kbd>↓ then ↖/↗</kbd> kick/heelflip · <kbd>↓ then ←/→</kbd> shove-it ·
-      <kbd>Q</kbd>/<kbd>C</kbd> grab · <kbd>B</kbd> off board · pad: <kbd>Y</kbd> board, hold <kbd>LB</kbd> to aim and fire · <kbd>H</kbd> hide</div>`;
+      <kbd>Q</kbd>/<kbd>C</kbd> grab · <kbd>B</kbd> off board · pad: <kbd>B</kbd> board, hold <kbd>LB</kbd> to aim and fire (LB+B melee) · <kbd>H</kbd> hide</div>`;
   document.body.appendChild(hud);
 
   const $ = (id) => document.getElementById(id);
@@ -146,7 +146,7 @@
     card.className = 'skate-card';
     card.innerHTML = `<h3>Skate the Halo campaign</h3>
       <table>
-        <tr><td>B / Y</td><td>hop on or off the board (keyboard B, gamepad Y)</td></tr>
+        <tr><td>B</td><td>hop on or off the board (keyboard or gamepad; on the pad, LB + B melees while riding)</td></tr>
         <tr><td>Hold LB</td><td>gamepad combat while riding: right stick aims, triggers fire and throw grenades.
           Let go and the right stick flicks tricks again (the triggers grab)</td></tr>
         <tr><td>W / Space</td><td>push · S brake · A D carve, spin in the air</td></tr>

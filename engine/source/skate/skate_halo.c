@@ -12,7 +12,7 @@ Halo's own walking: the board moves the biped, the director shows the chase came
 keeps everything else (aiming, shooting, damage, AI, scripts).
 
 Controls (keyboard / gamepad):
-	B / Y (pad)                 get on or off the board
+	B (keyboard and pad)        get on or off the board (pad: LB + B is melee while riding)
 	hold LB (pad)               combat: the right stick aims, the triggers fire and throw grenades;
 	                            let go and the right stick flicks tricks again, the triggers grab
 	W, Space / A                push          S / left stick back   brake
@@ -55,9 +55,9 @@ void web_note_skate(char const *json); /* port/web/src/web_main.c */
 extern unsigned skate_platform_keys;
 extern short skate_platform_right_stick[2];
 extern int skate_platform_skating;
-extern unsigned skate_platform_pad_buttons; /* bit 0 Y, bit 1 LB, bit 2 RB (the raw first gamepad) */
+extern unsigned skate_platform_pad_buttons; /* bit 0 B, bit 1 LB, bit 2 RB (the raw first gamepad) */
 extern int skate_platform_pad_triggers[2];
-#define SKATE_PAD_Y (1u << 0)
+#define SKATE_PAD_B (1u << 0)
 #define SKATE_PAD_LB (1u << 1)
 #define SKATE_PAD_RB (1u << 2)
 int web_skate_pack_state(void);   /* port/web/src/web_main.c: 0 idle, 1 fetching, 2 arrived, 3 unavailable */
@@ -854,8 +854,9 @@ boolean skate_halo_update_biped(long biped_index, struct unit_animation_update_d
 		toggle = TRUE;
 	skate_globals.previous_keys = keys;
 	{
-		/* the gamepad's Y (the platform layer keeps it from Halo's weapon switch) */
-		short y = (skate_platform_pad_buttons & SKATE_PAD_Y) != 0;
+		/* the gamepad's B (the platform layer keeps it from Halo's melee; LB + B melees while riding) */
+		short y = (skate_platform_pad_buttons & SKATE_PAD_B) != 0 &&
+			!(skate_globals.skating && (skate_platform_pad_buttons & SKATE_PAD_LB));
 		if (y && !skate_globals.previous_dpad_down)
 			toggle = TRUE;
 		skate_globals.previous_dpad_down = y;

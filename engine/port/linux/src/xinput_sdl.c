@@ -185,7 +185,7 @@ unsigned skate_platform_keys;
 /* the right stick as the player held it; while skating (set by the game) the game sees it centred */
 short skate_platform_right_stick[2];
 int skate_platform_skating;
-/* the first gamepad's skate buttons as held (bit 0 Y, bit 1 LB, bit 2 RB) and its triggers, 0..255 */
+/* the first gamepad's skate buttons as held (bit 0 B, bit 1 LB, bit 2 RB) and its triggers, 0..255 */
 unsigned skate_platform_pad_buttons;
 int skate_platform_pad_triggers[2];
 
@@ -589,14 +589,15 @@ DWORD WINAPI XInputGetState(HANDLE device, PXINPUT_STATE state)
 		if (count > 0)
 		{
 			sdl_gamepad_state(gamepads[0], &state->Gamepad);
-			/* HaloSkate3: Y gets on and off the board (Halo keeps the keyboard's weapon switch) */
-			if (SDL_GetGamepadButton(gamepads[0], SDL_GAMEPAD_BUTTON_NORTH))
-			{
-				skate_platform_pad_buttons |= 1u << 0;
-				state->Gamepad.bAnalogButtons[XINPUT_GAMEPAD_Y] = keyboard.bAnalogButtons[XINPUT_GAMEPAD_Y];
-			}
 			if (SDL_GetGamepadButton(gamepads[0], SDL_GAMEPAD_BUTTON_LEFT_SHOULDER))
 				skate_platform_pad_buttons |= 1u << 1;
+			/* HaloSkate3: B gets on and off the board; Halo sees it (melee) only as LB + B while riding */
+			if (SDL_GetGamepadButton(gamepads[0], SDL_GAMEPAD_BUTTON_EAST))
+			{
+				skate_platform_pad_buttons |= 1u << 0;
+				if (!(skate_platform_skating && (skate_platform_pad_buttons & (1u << 1))))
+					state->Gamepad.bAnalogButtons[XINPUT_GAMEPAD_B] = keyboard.bAnalogButtons[XINPUT_GAMEPAD_B];
+			}
 			if (SDL_GetGamepadButton(gamepads[0], SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))
 				skate_platform_pad_buttons |= 1u << 2;
 			skate_platform_pad_triggers[0] = SDL_GetGamepadAxis(gamepads[0], SDL_GAMEPAD_AXIS_LEFT_TRIGGER) * 255 / 32767;

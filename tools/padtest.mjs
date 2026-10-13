@@ -1,7 +1,7 @@
 // Headless gamepad check: a fake standard gamepad (navigator.getGamepads) drives the game.
 //   node tools/padtest.mjs [--url URL] [--shot docs/shots/pad.png]
-// Starts a Blood Gulch quick match, waits for the skate world, then: Y (board on), A pushes, a right-stick
-// ollie flick, LB held with RT (combat: fire) plus a flick (must not trick), LB released + a flick, Y (off).
+// Starts a Blood Gulch quick match, waits for the skate world, then: B (board on), A pushes, a right-stick
+// ollie flick, LB held with RT (combat: fire) plus a flick (must not trick), LB released + a flick, B (off).
 import { createRequire } from 'node:module';
 import path from 'node:path';
 const require = createRequire(import.meta.url);
@@ -64,8 +64,8 @@ console.log(stamp(), 'controller seen by the page:', await page.evaluate(() => d
 const results = [];
 const check = (name, ok) => { results.push(`${ok ? 'PASS' : 'FAIL'} ${name}`); console.log(stamp(), ok ? 'PASS' : 'FAIL', name); };
 
-await press(3, 0.2); // Y
-check('Y gets on the board', await until('on the board', 5));
+await press(1, 0.2); // B
+check('B gets on the board', await until('on the board', 5));
 for (let i = 0; i < 3; i++) { await press(0, 0.3); await wait(0.5); } // A pushes
 const tricks0 = count('skate3: trick');
 await flick(); await wait(2);
@@ -86,8 +86,8 @@ const tricks2 = count('skate3: trick');
 await flick(); await wait(2);
 check('LB released: flicks again', count('skate3: trick') > tricks2);
 await snap('flick');
-await press(3, 0.2); // Y
-check('Y gets off the board', await until('off the board', 5));
+await press(1, 0.2); // B
+check('B gets off the board', await until('off the board', 5));
 await wait(2);
 await snap('off');
 console.log(results.join('\n'));
