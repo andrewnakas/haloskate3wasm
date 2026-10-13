@@ -489,3 +489,12 @@ body.has-controller .touch-layer { display: none; }
 .touch-layer.fps-controls .touch-knob { left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border: 1px solid #ffffff80; background: #d2e9fa33; box-shadow: none; }
 
 .touch-layer.fps-controls .touch-stick.active { opacity: 1; }
+
+/* Simple launch screen (default): only the Launch button; everything else behind Settings,
+   and in game the Settings button opens the full panel (body.room-settings). */
+body.simple:not(.show-advanced):not(.room-settings) #launcher :is(#checks, #step-data, #step-play, #browser-rooms, .settings, #iphone-tips, #install-hint, #install-android) { display: none !important; }
+body.show-advanced #simple, body.room-settings #simple { display: none; }
+.simple-launch { display: grid; gap: 10px; justify-items: start; margin: 8px 0 4px; }
+.simple-launch .launch { font-size: 1.15rem; padding: 14px 28px; }
+.simple-launch .progress { width: 100%; }
+#launch-fill { height: 100%; width: 0; background: var(--accent, #4aa3ff); }

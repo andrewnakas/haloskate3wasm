@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="simple">
 <canvas id="screen" aria-label="Game"></canvas>
 <div id="touch" class="touch-layer" hidden></div>
 
@@ -24,6 +24,17 @@
       <h1>Halo<span>Skate 3</span></h1>
       <p class="subtitle">The Halo: Combat Evolved campaign in your browser, skated with Skate 3 mechanics (flick-it tricks ported from skate-core). Clean-room maps, no disc needed.</p>
     </header>
+
+    <!-- the default screen: one button; the main menu loads first and each level downloads when you pick it -->
+    <div id="simple" class="simple-launch">
+      <button id="launch" class="button primary launch" type="button" disabled>Launch game</button>
+      <div id="launch-progress" class="progress" hidden>
+        <div class="bar"><div id="launch-fill"></div></div>
+      </div>
+      <p id="launch-status" class="small" role="status" aria-live="polite">Checking the browser…</p>
+      <p class="small">Loads the main menu (9 MB). Each level downloads when you choose it. Settings, maps and online play are behind the Settings button, here and in game.</p>
+      <button id="show-advanced" class="button small-button" type="button">Settings</button>
+    </div>
 
     <div id="checks" class="checks" aria-live="polite"></div>
 
@@ -134,7 +145,7 @@
   </section>
 </main>
 
-<button id="room-toggle" class="button small-button room-toggle" type="button" hidden>Room</button>
+<button id="room-toggle" class="button small-button room-toggle" type="button" hidden>Settings</button>
 <section id="quick-panel" class="quick-panel" hidden aria-label="Multiplayer connection">
   <p id="quick-game-status" role="status" aria-live="polite"></p>
   <button id="quick-menu" class="button small-button" type="button">Main menu</button>
