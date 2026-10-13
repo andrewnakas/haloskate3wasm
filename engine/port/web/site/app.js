@@ -389,6 +389,52 @@ can run the game, copies the game data out of the player's disc image
     }
   }
 
+  // The simple screen: fetch the menu map (ui.map) if needed, then start the main menu. Levels
+  // download when the game asks for them (supplyMap).
+  async function launchGame() {
+    unlockInteraction();
+    if (state.started) return;
+    const status = $('launch-status');
+    $('launch').disabled = true;
+    try {
+      const ui = state.clean?.files.find(f => f.name === 'ui.map');
+      if (ui && !state.clean.have.has('ui.map')) {
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+        $('launch-progress').hidden = false;
+        status.textContent = 'Downloading the main menu…';
+        setDataBusy(true);
+        try {
+          await HaloCache.withLock(() => downloadClean([ui], (done, total) => {
+            $('launch-fill').style.width = (done / total * 100).toFixed(1) + '%';
+            status.textContent = `Downloading the main menu: ${(done / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
+          }));
+        } finally {
+          setDataBusy(false);
+        }
+        await refreshClean();
+        showSteps(await mapsState());
+      }
+      if (!state.maps) throw new Error('The game data is incomplete. Open Settings to repair it.');
+      status.textContent = 'Starting…';
+      await play({ userGesture: true });
+    } catch (error) {
+      log('launch: ' + error.message);
+      status.textContent = error.message;
+      $('launch').disabled = false;
+    }
+  }
+
+  function readyToLaunch() {
+    if (!state.clean && !state.maps) {
+      // no clean manifest and no data: the full panel has the disc-image path
+      document.body.classList.remove('simple');
+      return;
+    }
+    $('launch').disabled = false;
+    $('launch-status').textContent = state.clean?.have.has('ui.map') || state.maps ? 'Ready.' : 'Ready. The first launch downloads 9 MB.';
+    if (diagnosticOptions.get('launch') === '1') launchGame();
+  }
+
   // The running game needs a level that is not stored yet (it waits): fetch it, then answer.
   async function supplyMap(name) {
     const done = ok => window.Module?._web_map_request_done?.(ok ? 1 : 0);
@@ -1580,6 +1626,8 @@ can run the game, copies the game data out of the player's disc image
     $('clean-all').onclick = (event) => onCleanChosen(event, 'multiplayer');
     $('clean-campaign').onclick = (event) => onCleanChosen(event, 'campaign');
     $('quick-clean').onclick = () => { unlockInteraction(); return playSolo({ userGesture: true }); };
+    $('launch').onclick = launchGame;
+    $('show-advanced').onclick = () => document.body.classList.add('show-advanced');
     $('play').onclick = () => {
       unlockInteraction();
       if (!state.manualMode && (state.invite || state.selectedRoom)) return maybeQuickPlay();
@@ -1667,9 +1715,14 @@ can run the game, copies the game data out of the player's disc image
     setUpInvites();
     await loadCleanManifest();
     const ok = await runChecks();
-    if (!ok) return;
+    if (!ok) {
+      // show what failed
+      document.body.classList.remove('simple');
+      return;
+    }
     state.checksReady = true;
     showSteps(await mapsState());
+    if (diagnosticOptions.get('auto') !== '1') readyToLaunch();
     // ?auto=1 (headless checks): fetch the clean maps if needed, then start
     if (diagnosticOptions.get('auto') === '1') {
       const wanted = ['ui.map', QUICK_MAP + '.map'];
