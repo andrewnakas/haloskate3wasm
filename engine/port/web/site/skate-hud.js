@@ -140,7 +140,8 @@
 
   // the controls card on the launcher, and the hint strip once the game shows
   function addCard() {
-    const panel = document.querySelector('#launcher .panel header');
+    // below the Start game button, so the button stays at the top of the launcher
+    const panel = document.querySelector('#launcher #simple') || document.querySelector('#launcher .panel header');
     if (!panel || document.querySelector('.skate-card')) return;
     const card = document.createElement('div');
     card.className = 'skate-card';

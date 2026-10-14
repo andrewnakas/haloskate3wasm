@@ -17,6 +17,7 @@
 <body class="simple">
 <canvas id="screen" aria-label="Game"></canvas>
 <div id="touch" class="touch-layer" hidden></div>
+<div id="loading" class="loading" hidden role="status" aria-live="polite"><div class="spinner"></div><p>Loading Halo…</p></div>
 
 <main id="launcher">
   <section class="panel">
@@ -27,12 +28,12 @@
 
     <!-- the default screen: one button; the main menu loads first and each level downloads when you pick it -->
     <div id="simple" class="simple-launch">
-      <button id="launch" class="button primary launch" type="button" disabled>Launch game</button>
+      <button id="launch" class="button primary launch" type="button" disabled>Start game</button>
       <div id="launch-progress" class="progress" hidden>
         <div class="bar"><div id="launch-fill"></div></div>
       </div>
       <p id="launch-status" class="small" role="status" aria-live="polite">Checking the browser…</p>
-      <p class="small">Loads the main menu (9 MB). Each level downloads when you choose it. Settings, maps and online play are behind the Settings button, here and in game.</p>
+      <p class="small">Opens the Halo main menu (first time: a 9 MB download). Each level downloads when you choose it. Settings, maps and online play are behind the Settings button, here and in game.</p>
       <button id="show-advanced" class="button small-button" type="button">Settings</button>
     </div>
 

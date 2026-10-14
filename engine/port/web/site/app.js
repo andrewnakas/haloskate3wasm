@@ -161,6 +161,7 @@ can run the game, copies the game data out of the player's disc image
     log('fatal: ' + text);
     $('fatal-text').textContent = text;
     $('fatal').hidden = false;
+    $('loading').hidden = true;
     document.body.classList.remove('playing');
   }
 
@@ -412,6 +413,7 @@ can run the game, copies the game data out of the player's disc image
     if (state.started) return;
     const status = $('launch-status');
     $('launch').disabled = true;
+    $('launch').textContent = 'Starting…';
     try {
       const ui = state.clean?.files.find(f => f.name === 'ui.map');
       if (ui && !state.clean.have.has('ui.map')) {
@@ -436,6 +438,7 @@ can run the game, copies the game data out of the player's disc image
     } catch (error) {
       log('launch: ' + error.message);
       status.textContent = error.message;
+      $('launch').textContent = 'Start game';
       $('launch').disabled = false;
     }
   }
@@ -1136,6 +1139,7 @@ can run the game, copies the game data out of the player's disc image
     }
     updatePlayButton();
     document.body.classList.add('playing');
+    $('loading').hidden = false;
     $('room-toggle').hidden = !!state.invite;
     $('quick-panel').hidden = !role;
     requestWakeLock();
@@ -1292,6 +1296,7 @@ can run the game, copies the game data out of the player's disc image
         requestAnimationFrame(animationFrame);
         startAudio();
         log('runtime ready');
+        setTimeout(() => { $('loading').hidden = true; }, 2500);
       },
     };
 
