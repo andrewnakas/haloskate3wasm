@@ -59,6 +59,11 @@ to the Rust engine), **Master Chief stays the rider**, campaign starts on foot a
   let go = right stick flicks again and the triggers grab. Pad B alone never reaches Halo, so on-foot pad melee is gone
   (keyboard melee unchanged). Verified with a fake gamepad: `node tools/padtest.mjs` (5/5 pass).
 
+## 2026-10-14: smoke green again, one-button launch live
+- Smoke CI had failed since 10-12 only because it looked for the lite skater's log lines; the full
+  runtime logs `skate3: ...`. `.github/smoke/smoke.mjs` now accepts either; run 38537949272: SMOKE OK (full runtime).
+- PR #2/#3 (Launch game button, levels download in game, live maps.json) deployed.
+
 ## Testing tips (for the loop)
 - Fast route to gameplay: `?auto=1&quick=host&map=bloodgulch&room=0&env=HALO_SKATE_AUTO=1`, then press Enter twice
   (lobby -> start). Campaign: `?auto=1&map=a10&level=a10&room=0&env=HALO_SKATE_AUTO=1,HALO_SKATE_FAST=1` (the a10 intro
