@@ -1,5 +1,6 @@
 // Loads the deployed site, starts a Blood Gulch match with the board on, and checks the skate
-// module ran: rails derived from the level, rider on the board, no wasm errors.
+// module ran: a skate world built from the level, rider on the board, no wasm errors.
+// The full runtime (skate3) logs 'skate3: ...'; the lite fallback logs 'skate: ...'. Accept either.
 import { chromium } from 'playwright';
 
 const url = process.env.URL;
@@ -29,7 +30,7 @@ if (await until('map ui: loading', 300000)) {
     await page.keyboard.press('Enter');
   }
 }
-const rode = await until('skate: on the board', 240000);
+const rode = (await until('on the board', 240000)) && /skate3?: on the board/.test(logs.join('\n'));
 if (rode) {
   // push and ollie (pull back, flick forward)
   await page.keyboard.down('w'); await page.waitForTimeout(2000); await page.keyboard.up('w');
@@ -44,8 +45,9 @@ const text = logs.join('\n');
 console.log(logs.filter((l) => /skate|map |error|http|pageerror/i.test(l)).slice(0, 80).join('\n'));
 const fail = [];
 if (!seen('skate: ready')) fail.push('skate module never started');
-if (!/skate: \d+ grind rails derived/.test(text)) fail.push('no grind rails derived');
+if (!/skate: \d+ grind rails derived|skate3: world built/.test(text)) fail.push('no skate world built from the level');
 if (!rode) fail.push('never got on the board');
 if (/RuntimeError|unreachable|Aborted\(/.test(text)) fail.push('wasm error in console');
 if (fail.length) { console.error('SMOKE FAIL: ' + fail.join('; ')); process.exit(1); }
-console.log('SMOKE OK' + (seen('skate: pop Ollie') ? ' (ollie popped)' : ''));
+const runtime = seen('skate3: on the board') ? 'full runtime' : 'lite';
+console.log(`SMOKE OK (${runtime})` + (/skate: pop Ollie|skate3: trick Ollie/.test(text) ? ' (ollie popped)' : ''));
