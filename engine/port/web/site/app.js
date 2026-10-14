@@ -292,11 +292,27 @@ can run the game, copies the game data out of the player's disc image
     $('clean-data').hidden = false;
   }
 
+  // halo-cleanroom's live manifest first (its maps change without this site being rebuilt, and a
+  // stale size/hash makes every download fail), then the copy made at build time.
+  async function fetchManifest() {
+    try {
+      const live = await fetch(dataUrl('/halo-cleanroom/clean/maps.json'), { cache: 'no-cache' });
+      if (live.ok) {
+        const manifest = await live.json();
+        for (const f of manifest.files || []) f.base = f.base || '/halo-cleanroom/clean/';
+        return manifest;
+      }
+    } catch (error) {
+      log('live clean manifest: ' + error.message);
+    }
+    const response = await fetch('clean/maps.json', { cache: 'no-cache' });
+    return response.ok ? response.json() : null;
+  }
+
   async function loadCleanManifest() {
     try {
-      const response = await fetch('clean/maps.json', { cache: 'no-cache' });
-      if (!response.ok) return;
-      const manifest = await response.json();
+      const manifest = await fetchManifest();
+      if (!manifest) return;
       const files = (manifest.files || []).filter(f => HaloCache.expected.includes(f.name));
       if (!files.length || !files.some(f => f.name === 'ui.map')) return;
       state.clean = { files, version: manifest.version || '' };
